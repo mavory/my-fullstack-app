@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { BarChart3, Settings, Users, UserCheck, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
@@ -48,48 +49,56 @@ export default function AdminDashboard() {
       {/* Admin Action Buttons */}
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
         {/* Real-time Results */}
-        <Card className="hover:shadow-xl transition-shadow cursor-pointer transform hover:scale-105 duration-200">
-          <CardContent className="p-6 text-center">
-            <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
-              <BarChart3 className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-lg font-bold text-secondary mb-2">Online výsledky</h3>
-            <p className="text-sm text-secondary/75">Zobrazení aktuálních hlasů porotců</p>
-          </CardContent>
-        </Card>
+        <Link href="/admin/results">
+          <Card className="hover:shadow-xl transition-shadow cursor-pointer transform hover:scale-105 duration-200">
+            <CardContent className="p-6 text-center">
+              <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
+                <BarChart3 className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-secondary mb-2">Online výsledky</h3>
+              <p className="text-sm text-secondary/75">Zobrazení aktuálních hlasů porotců</p>
+            </CardContent>
+          </Card>
+        </Link>
 
         {/* Round Management */}
-        <Card className="hover:shadow-xl transition-shadow cursor-pointer transform hover:scale-105 duration-200">
-          <CardContent className="p-6 text-center">
-            <div className="w-16 h-16 bg-success rounded-full flex items-center justify-center mx-auto mb-4">
-              <Settings className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-lg font-bold text-secondary mb-2">Správa kol</h3>
-            <p className="text-sm text-secondary/75">Vytvoření a editace soutěžních kol</p>
-          </CardContent>
-        </Card>
+        <Link href="/admin/rounds">
+          <Card className="hover:shadow-xl transition-shadow cursor-pointer transform hover:scale-105 duration-200">
+            <CardContent className="p-6 text-center">
+              <div className="w-16 h-16 bg-success rounded-full flex items-center justify-center mx-auto mb-4">
+                <Settings className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-secondary mb-2">Správa kol</h3>
+              <p className="text-sm text-secondary/75">Vytvoření a editace soutěžních kol</p>
+            </CardContent>
+          </Card>
+        </Link>
 
         {/* Contestant Management */}
-        <Card className="hover:shadow-xl transition-shadow cursor-pointer transform hover:scale-105 duration-200">
-          <CardContent className="p-6 text-center">
-            <div className="w-16 h-16 bg-error rounded-full flex items-center justify-center mx-auto mb-4">
-              <Users className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-lg font-bold text-secondary mb-2">Správa soutěžících</h3>
-            <p className="text-sm text-secondary/75">Přidání a úprava účastníků</p>
-          </CardContent>
-        </Card>
+        <Link href="/admin/contestants">
+          <Card className="hover:shadow-xl transition-shadow cursor-pointer transform hover:scale-105 duration-200">
+            <CardContent className="p-6 text-center">
+              <div className="w-16 h-16 bg-error rounded-full flex items-center justify-center mx-auto mb-4">
+                <Users className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-secondary mb-2">Správa soutěžících</h3>
+              <p className="text-sm text-secondary/75">Přidání a úprava účastníků</p>
+            </CardContent>
+          </Card>
+        </Link>
 
         {/* Judge Management */}
-        <Card className="hover:shadow-xl transition-shadow cursor-pointer transform hover:scale-105 duration-200">
-          <CardContent className="p-6 text-center">
-            <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
-              <UserCheck className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-lg font-bold text-secondary mb-2">Správa porotců</h3>
-            <p className="text-sm text-secondary/75">Přidání a správa účtů porotců</p>
-          </CardContent>
-        </Card>
+        <Link href="/admin/judges">
+          <Card className="hover:shadow-xl transition-shadow cursor-pointer transform hover:scale-105 duration-200">
+            <CardContent className="p-6 text-center">
+              <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
+                <UserCheck className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-secondary mb-2">Správa porotců</h3>
+              <p className="text-sm text-secondary/75">Přidání a správa účtů porotců</p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Quick Stats */}

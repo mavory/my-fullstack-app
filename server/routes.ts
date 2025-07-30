@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertRoundSchema, insertContestantSchema, insertVoteSchema } from "@shared/schema";
+import { insertUserSchema, insertRoundSchema, insertContestantSchema, insertVoteSchema, users } from "@shared/schema";
+import { db } from "./db";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
@@ -235,7 +236,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingVote = await storage.getVote(voteData.userId, voteData.contestantId);
       
       if (existingVote) {
-        // Update existing vote
+        // Update existing vote - allow changing vote
         const updatedVote = await storage.updateVote(voteData.userId, voteData.contestantId, voteData.vote);
         res.json(updatedVote);
       } else {
@@ -243,8 +244,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const vote = await storage.createVote(voteData);
         res.json(vote);
       }
-    } catch (error) {
-      res.status(500).json({ message: "Internal server error" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Internal server error" });
     }
   });
 
@@ -253,6 +254,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const stats = await storage.getVotingStats();
       res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // Users routes
+  app.get("/api/users", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      // Get all users (admin only)
+      const allUsers = await db.select().from(users);
+      const usersWithoutPasswords = allUsers.map(user => ({
+        ...user,
+        password: undefined
+      }));
+      res.json(usersWithoutPasswords);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
     }

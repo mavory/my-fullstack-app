@@ -9,6 +9,10 @@ import NotFound from "@/pages/not-found";
 import Welcome from "@/pages/welcome";
 import JudgeDashboard from "@/pages/judge-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
+import AdminResults from "@/pages/admin-results";
+import AdminRounds from "@/pages/admin-rounds";
+import AdminContestants from "@/pages/admin-contestants";
+import AdminJudges from "@/pages/admin-judges";
 import VotingInterface from "@/pages/voting-interface";
 import VotingHistory from "@/pages/voting-history";
 
@@ -79,6 +83,30 @@ function Router() {
       <Route path="/admin">
         <ProtectedRoute adminOnly>
           <AdminDashboard />
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/admin/results">
+        <ProtectedRoute adminOnly>
+          <AdminResults />
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/admin/rounds">
+        <ProtectedRoute adminOnly>
+          <AdminRounds />
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/admin/contestants">
+        <ProtectedRoute adminOnly>
+          <AdminContestants />
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/admin/judges">
+        <ProtectedRoute adminOnly>
+          <AdminJudges />
         </ProtectedRoute>
       </Route>
       

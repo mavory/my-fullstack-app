@@ -178,6 +178,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createVote(insertVote: InsertVote): Promise<Vote> {
+    // Check if vote already exists for this user and contestant
+    const existingVote = await this.getVote(insertVote.userId, insertVote.contestantId);
+    if (existingVote) {
+      throw new Error("Uživatel již hlasoval pro tohoto soutěžícího");
+    }
+    
     const [vote] = await db
       .insert(votes)
       .values(insertVote)

@@ -21,8 +21,8 @@ export default function VotingInterface() {
   });
 
   const { data: contestants = [], isLoading } = useQuery<Contestant[]>({
-    queryKey: ["/api/contestants/round", activeRound?.id],
-    enabled: !!activeRound?.id,
+    queryKey: ["/api/contestants/visible"],
+    enabled: !!activeRound,
   });
 
   const { data: userVotes = [] } = useQuery<Vote[]>({

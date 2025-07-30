@@ -152,6 +152,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/rounds/deactivate", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      await storage.deactivateRounds();
+      res.json({ message: "All rounds deactivated successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
   // Contestants routes
   app.get("/api/contestants/round/:roundId", authenticateToken, async (req, res) => {
     try {
@@ -192,6 +201,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       await storage.deleteContestant(id);
       res.json({ message: "Contestant deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/contestants/:id/visibility", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { isVisibleToJudges } = req.body;
+      
+      const updatedContestant = await storage.updateContestant(id, { 
+        isVisibleToJudges: Boolean(isVisibleToJudges) 
+      });
+      
+      if (!updatedContestant) {
+        return res.status(404).json({ message: "Contestant not found" });
+      }
+      
+      res.json(updatedContestant);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.get("/api/contestants/visible", authenticateToken, async (req, res) => {
+    try {
+      const activeRound = await storage.getActiveRound();
+      if (!activeRound) {
+        return res.json([]);
+      }
+      
+      const contestants = await storage.getVisibleContestantsByRound(activeRound.id);
+      res.json(contestants);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
     }
@@ -269,6 +311,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: undefined
       }));
       res.json(usersWithoutPasswords);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.put("/api/users/:id", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      // If password is being updated, hash it
+      if (updates.password) {
+        updates.password = await bcrypt.hash(updates.password, 10);
+      }
+      
+      const user = await storage.updateUser(id, updates);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Remove password from response
+      const { password, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/users/:id", authenticateToken, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteUser(id);
+      res.json({ message: "User deleted successfully" });
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
     }

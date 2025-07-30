@@ -91,6 +91,28 @@ export default function AdminRounds() {
     },
   });
 
+  const deactivateRoundMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("PUT", "/api/rounds/deactivate", {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rounds"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rounds/active"] });
+      toast({
+        title: "Kolo zastaveno",
+        description: "Aktivní kolo bylo úspěšně zastaveno",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Chyba",
+        description: "Nepodařilo se zastavit kolo",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleCreateRound = (data: RoundForm) => {
     createRoundMutation.mutate(data);
   };
@@ -122,17 +144,37 @@ export default function AdminRounds() {
           </div>
         </div>
 
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Nové kolo
+        <div className="flex gap-3">
+          {activeRound && (
+            <Button 
+              variant="destructive"
+              onClick={() => {
+                if (confirm("Opravdu chcete zastavit aktivní kolo?")) {
+                  deactivateRoundMutation.mutate();
+                }
+              }}
+              disabled={deactivateRoundMutation.isPending}
+            >
+              {deactivateRoundMutation.isPending ? (
+                <LoadingSpinner size="sm" className="mr-2" />
+              ) : (
+                <Pause className="w-4 h-4 mr-2" />
+              )}
+              Zastavit kolo
             </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Vytvořit nové kolo</DialogTitle>
-            </DialogHeader>
+          )}
+          
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Nové kolo
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Vytvořit nové kolo</DialogTitle>
+              </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleCreateRound)} className="space-y-4">
                 <FormField
@@ -202,8 +244,9 @@ export default function AdminRounds() {
                 </div>
               </form>
             </Form>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="max-w-4xl mx-auto">

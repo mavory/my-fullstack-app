@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ArrowLeft, Plus, UserCheck, Mail, User } from "lucide-react";
+import { ArrowLeft, Plus, UserCheck, Mail, User, Edit, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -25,6 +25,7 @@ type JudgeForm = z.infer<typeof judgeSchema>;
 
 export default function AdminJudges() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingJudge, setEditingJudge] = useState<UserType | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -69,8 +70,75 @@ export default function AdminJudges() {
     },
   });
 
+  const updateJudgeMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<JudgeForm> }) => {
+      const response = await apiRequest("PUT", `/api/users/${id}`, data);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setEditingJudge(null);
+      form.reset();
+      toast({
+        title: "Porotce upraven",
+        description: "Údaje porotce byly úspěšně upraveny",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Chyba",
+        description: "Nepodařilo se upravit porotce",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteJudgeMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("DELETE", `/api/users/${id}`, {});
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({
+        title: "Porotce smazán",
+        description: "Porotce byl úspěšně odebrán",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Chyba",
+        description: "Nepodařilo se smazat porotce",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleCreateJudge = (data: JudgeForm) => {
     createJudgeMutation.mutate(data);
+  };
+
+  const handleEditJudge = (judge: UserType) => {
+    setEditingJudge(judge);
+    form.reset({
+      name: judge.name,
+      email: judge.email,
+      password: "", // Don't prefill password for security
+    });
+  };
+
+  const handleUpdateJudge = (data: JudgeForm) => {
+    if (editingJudge) {
+      // Only include password if it's not empty
+      const updateData = data.password ? data : { ...data, password: undefined };
+      updateJudgeMutation.mutate({ id: editingJudge.id, data: updateData });
+    }
+  };
+
+  const handleDeleteJudge = (id: string) => {
+    if (confirm("Opravdu chcete smazat tohoto porotce? Tato akce je nevratná.")) {
+      deleteJudgeMutation.mutate(id);
+    }
   };
 
   // Funkce pro automatické generování emailu z jména
@@ -118,19 +186,27 @@ export default function AdminJudges() {
           </div>
         </div>
 
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isCreateDialogOpen || !!editingJudge} onOpenChange={(open) => {
+          if (!open) {
+            setIsCreateDialogOpen(false);
+            setEditingJudge(null);
+            form.reset();
+          }
+        }}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Nový porotce
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Vytvořit nového porotce</DialogTitle>
+              <DialogTitle>
+                {editingJudge ? "Upravit porotce" : "Vytvořit nového porotce"}
+              </DialogTitle>
             </DialogHeader>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleCreateJudge)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(editingJudge ? handleUpdateJudge : handleCreateJudge)} className="space-y-4">
                 <FormField
                   control={form.control}
                   name="name"
@@ -172,7 +248,9 @@ export default function AdminJudges() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Heslo</FormLabel>
+                      <FormLabel>
+                        Heslo {editingJudge && "(nechte prázdné pro zachování současného)"}
+                      </FormLabel>
                       <FormControl>
                         <Input {...field} type="password" placeholder="••••••••" />
                       </FormControl>
@@ -185,21 +263,25 @@ export default function AdminJudges() {
                     type="button" 
                     variant="secondary" 
                     className="flex-1"
-                    onClick={() => setIsCreateDialogOpen(false)}
+                    onClick={() => {
+                      setIsCreateDialogOpen(false);
+                      setEditingJudge(null);
+                      form.reset();
+                    }}
                   >
                     Zrušit
                   </Button>
                   <Button 
                     type="submit" 
                     className="flex-1"
-                    disabled={createJudgeMutation.isPending}
+                    disabled={createJudgeMutation.isPending || updateJudgeMutation.isPending}
                   >
-                    {createJudgeMutation.isPending ? (
+                    {(createJudgeMutation.isPending || updateJudgeMutation.isPending) ? (
                       <LoadingSpinner size="sm" className="mr-2" />
                     ) : (
                       <Plus className="w-4 h-4 mr-2" />
                     )}
-                    Vytvořit
+                    {editingJudge ? "Upravit" : "Vytvořit"}
                   </Button>
                 </div>
               </form>
@@ -244,6 +326,23 @@ export default function AdminJudges() {
                             Vytvořen: {judge.createdAt ? new Date(judge.createdAt).toLocaleDateString("cs-CZ") : "Neznámo"}
                           </div>
                           <div className="text-xs text-success">Aktivní</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditJudge(judge)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteJudge(judge.id)}
+                            disabled={deleteJudgeMutation.isPending}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
                     </CardContent>

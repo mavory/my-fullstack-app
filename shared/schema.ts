@@ -31,6 +31,7 @@ export const contestants = pgTable("contestants", {
   description: text("description"),
   roundId: uuid("round_id").references(() => rounds.id),
   order: integer("order").notNull().default(1),
+  isVisibleToJudges: boolean("is_visible_to_judges").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

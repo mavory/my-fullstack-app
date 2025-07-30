@@ -24,6 +24,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<void>;
   
   // Rounds
   getRounds(): Promise<Round[]>;
@@ -31,9 +32,11 @@ export interface IStorage {
   createRound(round: InsertRound): Promise<Round>;
   updateRound(id: string, updates: Partial<InsertRound>): Promise<Round | undefined>;
   setActiveRound(roundId: string): Promise<void>;
+  deactivateRounds(): Promise<void>;
   
   // Contestants
   getContestantsByRound(roundId: string): Promise<Contestant[]>;
+  getVisibleContestantsByRound(roundId: string): Promise<Contestant[]>;
   getContestant(id: string): Promise<Contestant | undefined>;
   createContestant(contestant: InsertContestant): Promise<Contestant>;
   updateContestant(id: string, updates: Partial<InsertContestant>): Promise<Contestant | undefined>;
@@ -87,6 +90,10 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
+  async deleteUser(id: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
+  }
+
   async getRounds(): Promise<Round[]> {
     return await db.select().from(rounds).orderBy(desc(rounds.roundNumber));
   }
@@ -120,11 +127,27 @@ export class DatabaseStorage implements IStorage {
     await db.update(rounds).set({ isActive: true }).where(eq(rounds.id, roundId));
   }
 
+  async deactivateRounds(): Promise<void> {
+    // Deactivate all rounds
+    await db.update(rounds).set({ isActive: false });
+  }
+
   async getContestantsByRound(roundId: string): Promise<Contestant[]> {
     return await db
       .select()
       .from(contestants)
       .where(eq(contestants.roundId, roundId))
+      .orderBy(contestants.order);
+  }
+
+  async getVisibleContestantsByRound(roundId: string): Promise<Contestant[]> {
+    return await db
+      .select()
+      .from(contestants)
+      .where(and(
+        eq(contestants.roundId, roundId),
+        eq(contestants.isVisibleToJudges, true)
+      ))
       .orderBy(contestants.order);
   }
 

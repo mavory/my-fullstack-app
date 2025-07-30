@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ArrowLeft, Plus, User, Edit, Trash2, GraduationCap, Cake, Music } from "lucide-react";
+import { ArrowLeft, Plus, User, Edit, Trash2, GraduationCap, Cake, Music, Eye, EyeOff } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -122,6 +122,32 @@ export default function AdminContestants() {
       toast({
         title: "Chyba",
         description: "Nepodařilo se smazat soutěžícího",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleVisibilityMutation = useMutation({
+    mutationFn: async ({ id, isVisible }: { id: string; isVisible: boolean }) => {
+      const response = await apiRequest("PUT", `/api/contestants/${id}/visibility`, { 
+        isVisibleToJudges: isVisible 
+      });
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/contestants/round", activeRound?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contestants/visible"] });
+      toast({
+        title: variables.isVisible ? "Soutěžící poslán porotcům" : "Soutěžící skryt před porotci",
+        description: variables.isVisible 
+          ? "Porotci nyní mohou hlasovat pro tohoto soutěžícího" 
+          : "Porotci už nevidí tohoto soutěžícího",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Chyba",
+        description: "Nepodařilo se změnit zobrazení soutěžícího",
         variant: "destructive",
       });
     },
@@ -366,10 +392,40 @@ export default function AdminContestants() {
                               {contestant.description}
                             </p>
                           )}
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              contestant.isVisibleToJudges 
+                                ? "bg-green-100 text-green-700" 
+                                : "bg-gray-100 text-gray-700"
+                            }`}>
+                              {contestant.isVisibleToJudges ? "Viditelný porotcům" : "Skrytý před porotci"}
+                            </span>
+                          </div>
                         </div>
                       </div>
                       
                       <div className="flex gap-2">
+                        <Button
+                          variant={contestant.isVisibleToJudges ? "destructive" : "default"}
+                          size="sm"
+                          onClick={() => toggleVisibilityMutation.mutate({
+                            id: contestant.id,
+                            isVisible: !contestant.isVisibleToJudges
+                          })}
+                          disabled={toggleVisibilityMutation.isPending}
+                        >
+                          {contestant.isVisibleToJudges ? (
+                            <>
+                              <EyeOff className="w-4 h-4 mr-1" />
+                              Skrýt
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="w-4 h-4 mr-1" />
+                              Poslat
+                            </>
+                          )}
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"

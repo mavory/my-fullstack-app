@@ -7,7 +7,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Star, Key, LogIn } from "lucide-react";
+import { Star, Key, LogIn, FileText } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -64,7 +64,25 @@ export default function Welcome() {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative bg-background overflow-hidden">
-      {/* Admin Key Icon */}
+
+      {/* Dokumentace ikona vlevo nahoře */}
+      <div className="absolute top-8 left-8">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-secondary hover:text-primary transition-colors"
+          onClick={() =>
+            window.open(
+              "https://husovka-ma-talent.gitbook.io/husovka-ma-talent-docs/",
+              "_blank"
+            )
+          }
+        >
+          <FileText className="w-6 h-6" />
+        </Button>
+      </div>
+
+      {/* Admin Key Icon vpravo nahoře */}
       <div className="absolute top-8 right-8">
         <Dialog open={isAdminModalOpen} onOpenChange={setIsAdminModalOpen}>
           <DialogTrigger asChild>

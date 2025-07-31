@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 🎨 Vlastní barvy a proměnné */
 :root {
   --background: hsl(250, 20%, 98%);
   --foreground: hsl(240, 10%, 3.9%);
@@ -27,66 +28,82 @@
   --radius: 0.75rem;
 }
 
-.dark {
-  --background: hsl(240, 10%, 3.9%);
-  --foreground: hsl(0, 0%, 98%);
-  --muted: hsl(240, 3.7%, 15.9%);
-  --muted-foreground: hsl(240, 5%, 64.9%);
-  --popover: hsl(240, 10%, 3.9%);
-  --popover-foreground: hsl(0, 0%, 98%);
-  --card: hsl(240, 10%, 3.9%);
-  --card-foreground: hsl(0, 0%, 98%);
-  --border: hsl(240, 3.7%, 15.9%);
-  --input: hsl(240, 3.7%, 15.9%);
-  --primary: hsl(207, 90%, 54%);
-  --primary-foreground: hsl(210, 40%, 98%);
-  --secondary: hsl(240, 3.7%, 15.9%);
-  --secondary-foreground: hsl(0, 0%, 98%);
-  --accent: hsl(240, 3.7%, 15.9%);
-  --accent-foreground: hsl(0, 0%, 98%);
-  --destructive: hsl(0, 62.8%, 30.6%);
-  --destructive-foreground: hsl(0, 0%, 98%);
-  --success: hsl(142, 76%, 36%);
-  --success-foreground: hsl(210, 40%, 98%);
-  --ring: hsl(240, 4.9%, 83.9%);
+/* ✅ Scrollbar jen když je obsah delší */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+body::-webkit-scrollbar {
+  display: none;
 }
 
+/* Base layer */
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border box-border;
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-sans antialiased bg-background text-foreground min-h-screen flex flex-col;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold text-foreground;
+  }
+
+  p {
+    @apply text-muted-foreground leading-relaxed break-words;
   }
 }
 
+/* Components layer */
+@layer components {
+  .container-center {
+    @apply w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .panel {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6;
+  }
+
+  .card {
+    @apply bg-card text-card-foreground rounded-2xl shadow p-6 flex flex-col gap-4 w-full;
+  }
+
+  .card-title {
+    @apply text-lg font-semibold;
+  }
+
+  .card-text {
+    @apply text-sm text-muted-foreground;
+  }
+
+  .btn {
+    @apply px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium text-center transition-colors duration-200;
+  }
+  .btn:hover {
+    @apply bg-primary/90;
+  }
+  .btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+}
+
+/* Utilities layer */
 @layer utilities {
-  .bg-success {
-    background-color: hsl(var(--success));
-  }
-  
-  .bg-success\/90 {
-    background-color: hsl(var(--success) / 0.9);
-  }
-  
-  .text-success {
-    color: hsl(var(--success));
-  }
-  
-  .border-success {
-    border-color: hsl(var(--success));
-  }
-  
-  .bg-error {
-    background-color: hsl(var(--destructive));
-  }
-  
-  .text-error {
-    color: hsl(var(--destructive));
-  }
-  
-  .border-error {
-    border-color: hsl(var(--destructive));
-  }
+  .bg-success { background-color: hsl(var(--success)); }
+  .bg-success\/90 { background-color: hsl(var(--success) / 0.9); }
+  .text-success { color: hsl(var(--success)); }
+  .border-success { border-color: hsl(var(--success)); }
+
+  .bg-error { background-color: hsl(var(--destructive)); }
+  .text-error { color: hsl(var(--destructive)); }
+  .border-error { border-color: hsl(var(--destructive)); }
+
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
 }

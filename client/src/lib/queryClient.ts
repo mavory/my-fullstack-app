@@ -14,11 +14,11 @@ export async function apiRequest(
 ): Promise<Response> {
   const token = localStorage.getItem("token");
   const headers: Record<string, string> = {};
-  
+
   if (data) {
     headers["Content-Type"] = "application/json";
   }
-  
+
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -42,7 +42,7 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     const token = localStorage.getItem("token");
     const headers: Record<string, string> = {};
-    
+
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
@@ -64,13 +64,17 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      refetchInterval: 100, // automatický refresh každé 2s
+      refetchOnWindowFocus: true, // při návratu na tab znovu fetch
+      staleTime: 0, // data jsou okamžitě považována za zastaralá
       retry: false,
     },
     mutations: {
       retry: false,
+      // Globálně po každé mutaci zneplatní cache => okamžitý refresh
+      onSuccess: () => {
+        queryClient.invalidateQueries();
+      },
     },
   },
 });

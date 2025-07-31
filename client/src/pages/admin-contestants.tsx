@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -34,6 +34,26 @@ export default function AdminContestants() {
   const [editingContestant, setEditingContestant] = useState<Contestant | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // časomíra pro každého soutěžícího
+  const [timers, setTimers] = useState<Record<string, number>>({});
+  const [runningTimers, setRunningTimers] = useState<Record<string, boolean>>({});
+
+  // Interval pro měření času
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimers((prev) => {
+        const updated = { ...prev };
+        Object.keys(runningTimers).forEach((id) => {
+          if (runningTimers[id]) {
+            updated[id] = (updated[id] || 0) + 1;
+          }
+        });
+        return updated;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [runningTimers]);
 
   const { data: rounds = [] } = useQuery<Round[]>({
     queryKey: ["/api/rounds"],
@@ -137,6 +157,16 @@ export default function AdminContestants() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/contestants/round", activeRound?.id] });
       queryClient.invalidateQueries({ queryKey: ["/api/contestants/visible"] });
+
+      // ovládání časomíry
+      setRunningTimers((prev) => ({
+        ...prev,
+        [variables.id]: variables.isVisible,
+      }));
+      if (!variables.isVisible) {
+        // stopnutí časomíry – necháme čas zůstat
+      }
+
       toast({
         title: variables.isVisible ? "Soutěžící poslán porotcům" : "Soutěžící skryt před porotci",
         description: variables.isVisible 
@@ -182,6 +212,12 @@ export default function AdminContestants() {
     }
   };
 
+  const getTimeColor = (seconds: number) => {
+    if (seconds < 120) return "text-green-600";
+    if (seconds < 180) return "text-orange-600";
+    return "text-red-600";
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -191,8 +227,8 @@ export default function AdminContestants() {
   }
 
   return (
-    <div className="min-h-screen p-6 bg-background">
-      <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen p-4 sm:p-6 bg-background">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <div className="flex items-center">
           <Link href="/admin">
             <Button variant="ghost" size="icon" className="mr-4">
@@ -200,7 +236,7 @@ export default function AdminContestants() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-secondary">Správa soutěžících</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-secondary">Správa soutěžících</h1>
             <p className="text-secondary/75">
               {activeRound ? `Kolo: ${activeRound.name}` : "Žádné aktivní kolo"}
             </p>
@@ -242,7 +278,7 @@ export default function AdminContestants() {
                       </FormItem>
                     )}
                   />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField
                       control={form.control}
                       name="className"
@@ -313,7 +349,7 @@ export default function AdminContestants() {
                       </FormItem>
                     )}
                   />
-                  <div className="flex gap-3 pt-4">
+                  <div className="flex flex-col sm:flex-row gap-3 pt-4">
                     <Button 
                       type="button" 
                       variant="secondary" 
@@ -363,89 +399,92 @@ export default function AdminContestants() {
             </Card>
           ) : (
             <div className="grid gap-4">
-              {contestants.map((contestant) => (
-                <Card key={contestant.id}>
-                  <CardContent className="p-6">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
-                          <User className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-semibold text-secondary">{contestant.name}</h3>
-                          <div className="flex items-center gap-4 text-sm text-secondary/75 mt-1">
-                            <div className="flex items-center gap-1">
-                              <GraduationCap className="w-4 h-4" />
-                              {contestant.className}
+              {contestants.map((contestant) => {
+                const time = timers[contestant.id] || 0;
+                return (
+                  <Card key={contestant.id}>
+                    <CardContent className="p-6">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                          <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
+                            <User className="w-8 h-8 text-gray-400" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-secondary">{contestant.name}</h3>
+                            <div className="flex flex-wrap items-center gap-4 text-sm text-secondary/75 mt-1">
+                              <div className="flex items-center gap-1">
+                                <GraduationCap className="w-4 h-4" />
+                                {contestant.className}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Cake className="w-4 h-4" />
+                                {contestant.age} let
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Music className="w-4 h-4" />
+                                {contestant.category}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-1">
-                              <Cake className="w-4 h-4" />
-                              {contestant.age} let
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Music className="w-4 h-4" />
-                              {contestant.category}
+                            {contestant.description && (
+                              <p className="text-sm text-secondary/75 mt-2 max-w-md">
+                                {contestant.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                contestant.isVisibleToJudges 
+                                  ? "bg-green-100 text-green-700" 
+                                  : "bg-gray-100 text-gray-700"
+                              }`}>
+                                {contestant.isVisibleToJudges ? "Viditelný porotcům" : "Skrytý před porotci"}
+                              </span>
+                              {/* časomíra */}
+                              {time > 0 && (
+                                <span className={`ml-2 font-semibold ${getTimeColor(time)}`}>
+                                  {Math.floor(time / 60)}:{(time % 60).toString().padStart(2, "0")}
+                                </span>
+                              )}
                             </div>
                           </div>
-                          {contestant.description && (
-                            <p className="text-sm text-secondary/75 mt-2 max-w-md">
-                              {contestant.description}
-                            </p>
-                          )}
-                          <div className="flex items-center gap-2 mt-2">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              contestant.isVisibleToJudges 
-                                ? "bg-green-100 text-green-700" 
-                                : "bg-gray-100 text-gray-700"
-                            }`}>
-                              {contestant.isVisibleToJudges ? "Viditelný porotcům" : "Skrytý před porotci"}
-                            </span>
-                          </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button
+                            variant={contestant.isVisibleToJudges ? "outline" : "default"}
+                            size="icon"
+                            onClick={() =>
+                              toggleVisibilityMutation.mutate({
+                                id: contestant.id,
+                                isVisible: !contestant.isVisibleToJudges,
+                              })
+                            }
+                          >
+                            {contestant.isVisibleToJudges ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleEditContestant(contestant)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => handleDeleteContestant(contestant.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                      
-                      <div className="flex gap-2">
-                        <Button
-                          variant={contestant.isVisibleToJudges ? "destructive" : "default"}
-                          size="sm"
-                          onClick={() => toggleVisibilityMutation.mutate({
-                            id: contestant.id,
-                            isVisible: !contestant.isVisibleToJudges
-                          })}
-                          disabled={toggleVisibilityMutation.isPending}
-                        >
-                          {contestant.isVisibleToJudges ? (
-                            <>
-                              <EyeOff className="w-4 h-4 mr-1" />
-                              Skrýt
-                            </>
-                          ) : (
-                            <>
-                              <Eye className="w-4 h-4 mr-1" />
-                              Poslat
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEditContestant(contestant)}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeleteContestant(contestant.id)}
-                          disabled={deleteContestantMutation.isPending}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>

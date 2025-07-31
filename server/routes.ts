@@ -43,7 +43,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { email, password } = req.body;
-      
+
       const user = await storage.getUserByEmail(email);
       if (!user) {
         return res.status(401).json({ message: "Invalid credentials" });
@@ -72,7 +72,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/auth/register", async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
-      
+
       // Check if user already exists
       const existingUser = await storage.getUserByEmail(userData.email);
       if (existingUser) {
@@ -81,7 +81,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Hash password
       const hashedPassword = await bcrypt.hash(userData.password, 10);
-      
+
       const user = await storage.createUser({
         ...userData,
         password: hashedPassword,
@@ -210,15 +210,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const { isVisibleToJudges } = req.body;
-      
+
       const updatedContestant = await storage.updateContestant(id, { 
         isVisibleToJudges: Boolean(isVisibleToJudges) 
       });
-      
+
       if (!updatedContestant) {
         return res.status(404).json({ message: "Contestant not found" });
       }
-      
+
       res.json(updatedContestant);
     } catch (error) {
       res.status(500).json({ message: "Internal server error" });
@@ -231,7 +231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!activeRound) {
         return res.json([]);
       }
-      
+
       const contestants = await storage.getVisibleContestantsByRound(activeRound.id);
       res.json(contestants);
     } catch (error) {
@@ -243,12 +243,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/votes/user/:userId", authenticateToken, async (req: any, res) => {
     try {
       const { userId } = req.params;
-      
+
       // Users can only see their own votes unless they're admin
       if (req.user.role !== "admin" && req.user.id !== userId) {
         return res.status(403).json({ message: "Access denied" });
       }
-      
+
       const votes = await storage.getVotesByUser(userId);
       res.json(votes);
     } catch (error) {
@@ -276,7 +276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check if vote already exists
       const existingVote = await storage.getVote(voteData.userId, voteData.contestantId);
-      
+
       if (existingVote) {
         // Update existing vote - allow changing vote
         const updatedVote = await storage.updateVote(voteData.userId, voteData.contestantId, voteData.vote);
@@ -320,17 +320,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const updates = req.body;
-      
+
       // If password is being updated, hash it
       if (updates.password) {
         updates.password = await bcrypt.hash(updates.password, 10);
       }
-      
+
       const user = await storage.updateUser(id, updates);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      
+
       // Remove password from response
       const { password, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);

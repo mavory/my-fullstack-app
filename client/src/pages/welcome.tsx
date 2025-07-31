@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useForm } from "react-hook-form";
@@ -65,7 +63,7 @@ export default function Welcome() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative bg-background">
+    <div className="min-h-screen flex items-center justify-center relative bg-background overflow-hidden">
       {/* Admin Key Icon */}
       <div className="absolute top-8 right-8">
         <Dialog open={isAdminModalOpen} onOpenChange={setIsAdminModalOpen}>
@@ -74,7 +72,7 @@ export default function Welcome() {
               <Key className="w-6 h-6" />
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <div className="flex items-center justify-center mb-4">
                 <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
@@ -100,7 +98,7 @@ export default function Welcome() {
                         <Input 
                           {...field} 
                           type="email" 
-                          placeholder="admin@skola.cz"
+                          placeholder="prijmeni@husovka.cz"
                           className="rounded-lg"
                         />
                       </FormControl>
@@ -175,7 +173,7 @@ export default function Welcome() {
               Přihlásit se
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="text-center text-2xl font-bold text-secondary mb-2">
                 Přihlášení porotce
@@ -196,7 +194,7 @@ export default function Welcome() {
                         <Input 
                           {...field} 
                           type="email" 
-                          placeholder="vas.email@skola.cz"
+                          placeholder="prijmeni@husovka.cz"
                           className="rounded-lg"
                         />
                       </FormControl>

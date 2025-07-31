@@ -123,13 +123,12 @@ export default function AdminJudges() {
     form.reset({
       name: judge.name,
       email: judge.email,
-      password: "", // Don't prefill password for security
+      password: "",
     });
   };
 
   const handleUpdateJudge = (data: JudgeForm) => {
     if (editingJudge) {
-      // Only include password if it's not empty
       const updateData = data.password ? data : { ...data, password: undefined };
       updateJudgeMutation.mutate({ id: editingJudge.id, data: updateData });
     }
@@ -141,16 +140,14 @@ export default function AdminJudges() {
     }
   };
 
-  // Funkce pro automatické generování emailu z jména
   const generateEmailFromName = (name: string) => {
     const parts = name.trim().split(' ');
     if (parts.length >= 2) {
-      const surname = parts[parts.length - 1]; // Poslední slovo je příjmení
-      // Odstranění diakritiky a převod na malá písmena
+      const surname = parts[parts.length - 1];
       const normalizedSurname = surname
         .toLowerCase()
         .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, ""); // Odstranění diakritiky
+        .replace(/[\u0300-\u036f]/g, "");
       return `${normalizedSurname}@husovka.cz`;
     }
     return "";
@@ -172,17 +169,17 @@ export default function AdminJudges() {
   }
 
   return (
-    <div className="min-h-screen p-6 bg-background">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center">
+    <div className="min-h-screen p-4 md:p-6 bg-background">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
+        <div className="flex items-center gap-4">
           <Link href="/admin">
-            <Button variant="ghost" size="icon" className="mr-4">
+            <Button variant="ghost" size="icon">
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-secondary">Správa porotců</h1>
-            <p className="text-secondary/75">Přidání a správa účtů porotců</p>
+            <h1 className="text-2xl md:text-3xl font-bold text-secondary">Správa porotců</h1>
+            <p className="text-secondary/75 text-sm md:text-base">Přidání a správa účtů porotců</p>
           </div>
         </div>
 
@@ -194,12 +191,12 @@ export default function AdminJudges() {
           }
         }}>
           <DialogTrigger asChild>
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <Button className="w-full md:w-auto" onClick={() => setIsCreateDialogOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Nový porotce
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-sm sm:max-w-md">
             <DialogHeader>
               <DialogTitle>
                 {editingJudge ? "Upravit porotce" : "Vytvořit nového porotce"}
@@ -258,7 +255,7 @@ export default function AdminJudges() {
                     </FormItem>
                   )}
                 />
-                <div className="flex gap-3 pt-4">
+                <div className="flex flex-col sm:flex-row gap-3 pt-4">
                   <Button 
                     type="button" 
                     variant="secondary" 
@@ -310,24 +307,24 @@ export default function AdminJudges() {
                 {judges.map((judge) => (
                   <Card key={judge.id} className="bg-background">
                     <CardContent className="p-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center mx-auto sm:mx-0">
                           <User className="w-6 h-6 text-white" />
                         </div>
-                        <div className="flex-1">
+                        <div className="flex-1 text-center sm:text-left">
                           <h3 className="font-semibold text-secondary">{judge.name}</h3>
-                          <div className="flex items-center gap-1 text-sm text-secondary/75">
+                          <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-secondary/75">
                             <Mail className="w-4 h-4" />
                             {judge.email}
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-center sm:text-right">
                           <div className="text-sm text-secondary/75">
                             Vytvořen: {judge.createdAt ? new Date(judge.createdAt).toLocaleDateString("cs-CZ") : "Neznámo"}
                           </div>
                           <div className="text-xs text-success">Aktivní</div>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex justify-center sm:justify-end gap-2">
                           <Button
                             variant="outline"
                             size="sm"
@@ -352,19 +349,19 @@ export default function AdminJudges() {
             )}
           </CardContent>
         </Card>
-        
+
         {judges.length > 0 && (
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>Přihlašovací údaje</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="bg-gray-50 p-4 rounded-lg text-center sm:text-left">
                 <p className="text-sm text-secondary/75 mb-2">
-                  Všichni porotci používají heslo: <strong>heslo123</strong>
+                  Všichni nově přidaní porotci mají automaticky: <strong>heslo123</strong>
                 </p>
                 <p className="text-xs text-secondary/50">
-                  Doporučujeme porotcům změnit heslo po prvním přihlášení
+                  Doporučujeme porotcům změnit heslo po prvním přihlášení!
                 </p>
               </div>
             </CardContent>

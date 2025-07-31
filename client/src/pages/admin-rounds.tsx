@@ -1,12 +1,30 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ArrowLeft, Plus, Play, Pause, Settings } from "lucide-react";
+import { ArrowLeft, Plus, Play, Pause, Settings, Users } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -113,13 +131,10 @@ export default function AdminRounds() {
     },
   });
 
-  const handleCreateRound = (data: RoundForm) => {
+  const handleCreateRound = (data: RoundForm) =>
     createRoundMutation.mutate(data);
-  };
-
-  const handleActivateRound = (roundId: string) => {
+  const handleActivateRound = (roundId: string) =>
     activateRoundMutation.mutate(roundId);
-  };
 
   if (isLoading) {
     return (
@@ -130,24 +145,30 @@ export default function AdminRounds() {
   }
 
   return (
-    <div className="min-h-screen p-6 bg-background">
-      <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen p-4 sm:p-6 bg-background">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div className="flex items-center">
           <Link href="/admin">
-            <Button variant="ghost" size="icon" className="mr-4">
+            <Button variant="ghost" size="icon" className="mr-3">
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-secondary">Správa kol</h1>
-            <p className="text-secondary/75">Vytváření a správa soutěžních kol</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-secondary">
+              Správa kol
+            </h1>
+            <p className="text-secondary/75 text-sm sm:text-base">
+              Vytváření a správa soutěžních kol
+            </p>
           </div>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
           {activeRound && (
-            <Button 
+            <Button
               variant="destructive"
+              className="w-full sm:w-auto"
               onClick={() => {
                 if (confirm("Opravdu chcete zastavit aktivní kolo?")) {
                   deactivateRoundMutation.mutate();
@@ -163,151 +184,200 @@ export default function AdminRounds() {
               Zastavit kolo
             </Button>
           )}
-          
+
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
                 Nové kolo
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-sm sm:max-w-md w-[95%] rounded-xl">
               <DialogHeader>
                 <DialogTitle>Vytvořit nové kolo</DialogTitle>
               </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleCreateRound)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Název kola</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder="např. 1. kolo - Základní školáci" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Popis (volitelný)</FormLabel>
-                      <FormControl>
-                        <Textarea {...field} placeholder="Popis kola..." />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="roundNumber"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Číslo kola</FormLabel>
-                      <FormControl>
-                        <Input 
-                          {...field} 
-                          type="number" 
-                          onChange={(e) => field.onChange(parseInt(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="flex gap-3 pt-4">
-                  <Button 
-                    type="button" 
-                    variant="secondary" 
-                    className="flex-1"
-                    onClick={() => setIsCreateDialogOpen(false)}
-                  >
-                    Zrušit
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    className="flex-1"
-                    disabled={createRoundMutation.isPending}
-                  >
-                    {createRoundMutation.isPending ? (
-                      <LoadingSpinner size="sm" className="mr-2" />
-                    ) : (
-                      <Plus className="w-4 h-4 mr-2" />
+              <Form {...form}>
+                <form
+                  onSubmit={form.handleSubmit(handleCreateRound)}
+                  className="space-y-4"
+                >
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Název</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Popis</FormLabel>
+                        <FormControl>
+                          <Textarea {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="roundNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Číslo kola</FormLabel>
+                        <FormControl>
+                          <Input type="number" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" className="w-full">
                     Vytvořit
                   </Button>
-                </div>
-              </form>
-            </Form>
+                </form>
+              </Form>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto">
+      {/* List of rounds */}
+      <div className="max-w-3xl mx-auto">
         <div className="grid gap-4">
           {rounds.length === 0 ? (
             <Card>
-              <CardContent className="p-8 text-center">
+              <CardContent className="p-6 text-center">
                 <Settings className="w-12 h-12 text-secondary/50 mx-auto mb-4" />
-                <p className="text-secondary/75">Zatím nejsou vytvořena žádná kola</p>
-                <p className="text-sm text-secondary/50">Vytvořte první kolo pro začátek soutěže</p>
+                <p className="text-secondary/75">
+                  Zatím nejsou vytvořena žádná kola
+                </p>
+                <p className="text-sm text-secondary/50">
+                  Vytvořte první kolo pro začátek soutěže
+                </p>
               </CardContent>
             </Card>
           ) : (
             rounds.map((round) => (
-              <Card key={round.id} className={round.isActive ? "border-primary shadow-md" : ""}>
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-lg font-semibold text-secondary">{round.name}</h3>
-                        {round.isActive && (
-                          <span className="bg-primary text-white px-2 py-1 rounded text-xs font-medium">
-                            AKTIVNÍ
-                          </span>
-                        )}
-                      </div>
-                      {round.description && (
-                        <p className="text-secondary/75 text-sm mb-2">{round.description}</p>
-                      )}
-                      <div className="text-xs text-secondary/50">
-                        Kolo č. {round.roundNumber} • Vytvořeno: {new Date(round.createdAt!).toLocaleDateString("cs-CZ")}
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      {round.isActive ? (
-                        <Button variant="outline" disabled>
-                          <Pause className="w-4 h-4 mr-2" />
-                          Aktivní
-                        </Button>
-                      ) : (
-                        <Button 
-                          onClick={() => handleActivateRound(round.id)}
-                          disabled={activateRoundMutation.isPending}
-                        >
-                          {activateRoundMutation.isPending ? (
-                            <LoadingSpinner size="sm" className="mr-2" />
-                          ) : (
-                            <Play className="w-4 h-4 mr-2" />
-                          )}
-                          Aktivovat
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <RoundCard
+                key={round.id}
+                round={round}
+                onActivate={handleActivateRound}
+                deactivateRound={deactivateRoundMutation}
+                activateRound={activateRoundMutation}
+              />
             ))
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function RoundCard({
+  round,
+  onActivate,
+  deactivateRound,
+  activateRound,
+}: {
+  round: Round;
+  onActivate: (id: string) => void;
+  deactivateRound: any;
+  activateRound: any;
+}) {
+  const [showContestants, setShowContestants] = useState(false);
+
+  const { data: contestants = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/contestants/round", round.id],
+    enabled: !!round.id,
+  });
+
+  return (
+    <Card className={round.isActive ? "border-primary shadow-md" : ""}>
+      <CardContent className="p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <h3 className="text-base sm:text-lg font-semibold text-secondary">
+                {round.name}
+              </h3>
+              {round.isActive && (
+                <span className="bg-primary text-white px-2 py-1 rounded text-xs font-medium">
+                  AKTIVNÍ
+                </span>
+              )}
+            </div>
+            {round.description && (
+              <p className="text-secondary/75 text-sm mb-2">
+                {round.description}
+              </p>
+            )}
+            <div className="text-xs text-secondary/50 flex items-center gap-2">
+              Kolo č. {round.roundNumber} •{" "}
+              {isLoading ? "Načítání..." : `Soutěžících: ${contestants.length}`}
+              {contestants.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowContestants((p) => !p)}
+                >
+                  <Users className="w-4 h-4 mr-1" />
+                  {showContestants ? "Skrýt" : "Zobrazit"}
+                </Button>
+              )}
+            </div>
+            {showContestants && contestants.length > 0 && (
+              <ul className="mt-2 list-disc list-inside text-sm text-secondary/80">
+                {contestants.map((c) => (
+                  <li key={c.id}>{c.name}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            {round.isActive ? (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (confirm("Opravdu chcete zastavit aktivní kolo?")) {
+                    deactivateRound.mutate();
+                  }
+                }}
+                disabled={deactivateRound.isPending}
+                className="w-full sm:w-auto"
+              >
+                {deactivateRound.isPending ? (
+                  <LoadingSpinner size="sm" className="mr-2" />
+                ) : (
+                  <Pause className="w-4 h-4 mr-2" />
+                )}
+                Zastavit kolo
+              </Button>
+            ) : (
+              <Button
+                onClick={() => onActivate(round.id)}
+                disabled={activateRound.isPending}
+                className="w-full sm:w-auto"
+              >
+                {activateRound.isPending ? (
+                  <LoadingSpinner size="sm" className="mr-2" />
+                ) : (
+                  <Play className="w-4 h-4 mr-2" />
+                )}
+                Aktivovat
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -25,7 +25,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, updates: Partial<InsertUser>): Promise<User | undefined>;
   deleteUser(id: string): Promise<void>;
-  
+
   // Rounds
   getRounds(): Promise<Round[]>;
   getActiveRound(): Promise<Round | undefined>;
@@ -33,7 +33,7 @@ export interface IStorage {
   updateRound(id: string, updates: Partial<InsertRound>): Promise<Round | undefined>;
   setActiveRound(roundId: string): Promise<void>;
   deactivateRounds(): Promise<void>;
-  
+
   // Contestants
   getContestantsByRound(roundId: string): Promise<Contestant[]>;
   getVisibleContestantsByRound(roundId: string): Promise<Contestant[]>;
@@ -41,18 +41,18 @@ export interface IStorage {
   createContestant(contestant: InsertContestant): Promise<Contestant>;
   updateContestant(id: string, updates: Partial<InsertContestant>): Promise<Contestant | undefined>;
   deleteContestant(id: string): Promise<void>;
-  
+
   // Votes
   getVotesByUser(userId: string): Promise<Vote[]>;
   getVotesByContestant(contestantId: string): Promise<Vote[]>;
   getVote(userId: string, contestantId: string): Promise<Vote | undefined>;
   createVote(vote: InsertVote): Promise<Vote>;
   updateVote(userId: string, contestantId: string, voteValue: boolean): Promise<Vote | undefined>;
-  
+
   // System Settings
   getSystemSetting(key: string): Promise<SystemSetting | undefined>;
   setSystemSetting(setting: InsertSystemSetting): Promise<SystemSetting>;
-  
+
   // Statistics
   getVotingStats(): Promise<{
     totalVotes: number;
@@ -206,7 +206,7 @@ export class DatabaseStorage implements IStorage {
     if (existingVote) {
       throw new Error("Uživatel již hlasoval pro tohoto soutěžícího");
     }
-    
+
     const [vote] = await db
       .insert(votes)
       .values(insertVote)
@@ -230,7 +230,7 @@ export class DatabaseStorage implements IStorage {
 
   async setSystemSetting(insertSetting: InsertSystemSetting): Promise<SystemSetting> {
     const existingSetting = await this.getSystemSetting(insertSetting.key);
-    
+
     if (existingSetting) {
       const [setting] = await db
         .update(systemSettings)

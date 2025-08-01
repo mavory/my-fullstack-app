@@ -302,8 +302,8 @@ export default function AdminContestants() {
                             <Input 
                               {...field} 
                               type="number" 
-                              min="6" 
-                              max="18"
+                              min="0" 
+                              max="20"
                               onChange={(e) => field.onChange(parseInt(e.target.value))}
                             />
                           </FormControl>

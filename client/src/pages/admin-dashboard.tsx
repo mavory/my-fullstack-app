@@ -117,7 +117,7 @@ export default function AdminDashboard() {
                 Správa účtů
               </h3>
               <p className="text-xs md:text-sm text-secondary/75">
-                Přidání a správa účtů porotců + adminů
+                Správa účtů porotců + adminů
               </p>
             </CardContent>
           </Card>

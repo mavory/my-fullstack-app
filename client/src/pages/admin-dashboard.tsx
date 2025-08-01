@@ -114,10 +114,10 @@ export default function AdminDashboard() {
                 <UserCheck className="w-7 h-7 md:w-8 md:h-8 text-white" />
               </div>
               <h3 className="text-base md:text-lg font-bold text-secondary mb-2">
-                Správa porotců
+                Správa účtů
               </h3>
               <p className="text-xs md:text-sm text-secondary/75">
-                Přidání a správa účtů porotců
+                Přidání a správa účtů porotců + adminů
               </p>
             </CardContent>
           </Card>

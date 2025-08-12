@@ -26,45 +26,60 @@ export default function Welcome() {
   const [isLoading, setIsLoading] = useState(false);
   const [showJudgePassword, setShowJudgePassword] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
+
+  // useAuth: login teď vrací User (viz use-auth.tsx)
   const { login, logout } = useAuth();
   const { toast } = useToast();
 
   const judgeForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: {
+      email: "",
+      password: "",
+    },
   });
 
   const adminForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: {
+      email: "",
+      password: "",
+    },
   });
 
   const handleLogin = async (data: LoginForm, isAdmin: boolean) => {
     setIsLoading(true);
     try {
+      // case-insensitive email, password passed as-is (server should handle hashing/case)
       const emailLower = data.email.trim().toLowerCase();
-      const passwordLower = data.password.toLowerCase();
+      const passwordValue = data.password;
 
-      const loggedUser = await login(emailLower, passwordLower);
+      // login vrací usera (nejen nastaví stav) — podle toho kontrolujeme roli
+      const loggedUser = await login(emailLower, passwordValue);
+
       if (!loggedUser) throw new Error("Uživatel nenalezen");
 
-      if (isAdmin && loggedUser.role !== "admin") {
+      const role = (loggedUser as any).role; // typ závisí na tvém User typu
+
+      if (isAdmin && role !== "admin") {
         await logout();
         toast({
           title: "Špatné přihlašovací pole",
           description: "Tento účet není admin, přihlašte se v porotcovském přihlášení.",
           variant: "destructive",
         });
+        setIsLoading(false);
         return;
       }
 
-      if (!isAdmin && loggedUser.role !== "judge") {
+      if (!isAdmin && role !== "judge") {
         await logout();
         toast({
           title: "Špatné přihlašovací pole",
           description: "Tento účet není porotce, přihlašte se v admin přihlášení.",
           variant: "destructive",
         });
+        setIsLoading(false);
         return;
       }
 
@@ -74,10 +89,11 @@ export default function Welcome() {
         title: "Úspěšně přihlášen",
         description: `Vítejte v systému${isAdmin ? " (Admin)" : ""}!`,
       });
-    } catch {
+    } catch (error: any) {
+      // Pokud login nebo kontrola role selže
       toast({
         title: "Chyba přihlášení",
-        description: "Neplatné přihlašovací údaje",
+        description: error?.message || "Neplatné přihlašovací údaje",
         variant: "destructive",
       });
     } finally {
@@ -87,35 +103,45 @@ export default function Welcome() {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative bg-background overflow-hidden">
-      {/* Dokumentace */}
+
+      {/* Dokumentace ikona vlevo nahoře */}
       <div className="absolute top-8 left-8">
         <Button
           variant="ghost"
           size="icon"
-          className="text-secondary hover:text-primary"
-          onClick={() => window.open("https://husovka-ma-talent.gitbook.io/husovka-ma-talent-docs/", "_blank")}
+          className="text-secondary hover:text-primary transition-colors"
+          onClick={() =>
+            window.open(
+              "https://husovka-ma-talent.gitbook.io/husovka-ma-talent-docs/",
+              "_blank"
+            )
+          }
         >
           <FileText className="w-6 h-6" />
         </Button>
       </div>
 
-      {/* Admin modal */}
+      {/* Admin Key Icon vpravo nahoře */}
       <div className="absolute top-8 right-8">
         <Dialog open={isAdminModalOpen} onOpenChange={setIsAdminModalOpen}>
           <DialogTrigger asChild>
-            <Button variant="ghost" size="icon" className="text-secondary hover:text-primary">
+            <Button variant="ghost" size="icon" className="text-secondary hover:text-primary transition-colors">
               <Key className="w-6 h-6" />
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <div className="flex justify-center mb-4">
-                <Key className="w-12 h-12 text-primary" />
+              <div className="flex items-center justify-center mb-4">
+                <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
+                  <Key className="w-6 h-6 text-white" />
+                </div>
               </div>
               <DialogTitle className="text-center text-2xl font-bold text-secondary">
                 Administrátorské přihlášení
               </DialogTitle>
-              <p className="text-center text-secondary/75">Zadejte admin přihlašovací údaje</p>
+              <p className="text-center text-secondary/75">
+                Zadejte admin přihlašovací údaje
+              </p>
             </DialogHeader>
             <Form {...adminForm}>
               <form onSubmit={adminForm.handleSubmit((data) => handleLogin(data, true))} className="space-y-4">
@@ -126,7 +152,12 @@ export default function Welcome() {
                     <FormItem>
                       <FormLabel>Admin Email</FormLabel>
                       <FormControl>
-                        <Input {...field} type="email" placeholder="prijmeni@husovka.cz" className="rounded-lg" />
+                        <Input
+                          {...field}
+                          type="email"
+                          placeholder="prijmeni@husovka.cz"
+                          className="rounded-lg"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -149,7 +180,7 @@ export default function Welcome() {
                         </FormControl>
                         <button
                           type="button"
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                           onClick={() => setShowAdminPassword(!showAdminPassword)}
                         >
                           {showAdminPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -160,9 +191,24 @@ export default function Welcome() {
                   )}
                 />
                 <div className="flex gap-3 pt-4">
-                  <Button type="button" variant="secondary" className="flex-1 rounded-lg" onClick={() => setIsAdminModalOpen(false)}>Zrušit</Button>
-                  <Button type="submit" className="flex-1 rounded-lg" disabled={isLoading}>
-                    {isLoading ? <LoadingSpinner size="sm" className="mr-2" /> : <Key className="w-4 h-4 mr-2" />}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="flex-1 rounded-lg"
+                    onClick={() => setIsAdminModalOpen(false)}
+                  >
+                    Zrušit
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1 rounded-lg"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <LoadingSpinner size="sm" className="mr-2" />
+                    ) : (
+                      <Key className="w-4 h-4 mr-2" />
+                    )}
                     Přihlásit jako Admin
                   </Button>
                 </div>
@@ -172,27 +218,43 @@ export default function Welcome() {
         </Dialog>
       </div>
 
-      {/* Main login */}
       <div className="text-center max-w-md mx-auto px-6">
+        {/* School Logo */}
         <div className="mb-8">
-          <img src={logo} alt="Logo školy" className="w-20 h-20 mx-auto" />
+          <img
+            src={logo}
+            alt="Logo školy"
+            className="w-56 h-56 mx-auto object-contain" /* zvětšené logo */
+          />
           <h1 className="text-4xl font-bold text-secondary mb-2">Husovka má talent</h1>
           <p className="text-lg text-secondary/75">Hlasovací systém pro porotce</p>
         </div>
 
+        {/* Login Button */}
         <Dialog open={isJudgeModalOpen} onOpenChange={setIsJudgeModalOpen}>
           <DialogTrigger asChild>
-            <Button className="w-full py-4 px-8 rounded-lg shadow-lg hover:scale-105 text-lg font-semibold">
+            <Button
+              className="w-full py-4 px-8 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 text-lg font-semibold"
+              size="lg"
+            >
               <LogIn className="w-5 h-5 mr-2" />
               Přihlásit se
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
+              {/* key ikona i u porotce — stejná jako v admin modal */}
+              <div className="flex items-center justify-center mb-4">
+                <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
+                  <Key className="w-6 h-6 text-white" />
+                </div>
+              </div>
               <DialogTitle className="text-center text-2xl font-bold text-secondary mb-2">
                 Přihlášení porotce
               </DialogTitle>
-              <p className="text-center text-secondary/75">Zadejte vaše přihlašovací údaje</p>
+              <p className="text-center text-secondary/75">
+                Zadejte vaše přihlašovací údaje
+              </p>
             </DialogHeader>
             <Form {...judgeForm}>
               <form onSubmit={judgeForm.handleSubmit((data) => handleLogin(data, false))} className="space-y-4">
@@ -203,7 +265,12 @@ export default function Welcome() {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input {...field} type="email" placeholder="prijmeni@husovka.cz" className="rounded-lg" />
+                        <Input
+                          {...field}
+                          type="email"
+                          placeholder="prijmeni@husovka.cz"
+                          className="rounded-lg"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -226,7 +293,7 @@ export default function Welcome() {
                         </FormControl>
                         <button
                           type="button"
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                           onClick={() => setShowJudgePassword(!showJudgePassword)}
                         >
                           {showJudgePassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -237,9 +304,24 @@ export default function Welcome() {
                   )}
                 />
                 <div className="flex gap-3 pt-4">
-                  <Button type="button" variant="secondary" className="flex-1 rounded-lg" onClick={() => setIsJudgeModalOpen(false)}>Zrušit</Button>
-                  <Button type="submit" className="flex-1 rounded-lg" disabled={isLoading}>
-                    {isLoading ? <LoadingSpinner size="sm" className="mr-2" /> : <LogIn className="w-4 h-4 mr-2" />}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="flex-1 rounded-lg"
+                    onClick={() => setIsJudgeModalOpen(false)}
+                  >
+                    Zrušit
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1 rounded-lg"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <LoadingSpinner size="sm" className="mr-2" />
+                    ) : (
+                      <LogIn className="w-4 h-4 mr-2" />
+                    )}
                     Přihlásit
                   </Button>
                 </div>

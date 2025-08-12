@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -58,6 +58,15 @@ export default function VotingInterface() {
       voteMutation.mutate({ contestantId: currentContestant.id, vote });
     }
   };
+
+  // --- TADY přidáváme useEffect, co "resetne" cache nebo stav při ztrátě activeRound
+  useEffect(() => {
+    if (!activeRound) {
+      // třeba vynulujeme nějaký lokální stav nebo jen vynutíme refetch
+      queryClient.invalidateQueries(["/api/contestants/visible"]);
+      queryClient.invalidateQueries(["/api/votes/user", user?.id]);
+    }
+  }, [activeRound, queryClient, user?.id]);
 
   if (isLoading) {
     return (

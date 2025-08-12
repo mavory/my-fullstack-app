@@ -26,40 +26,30 @@ export default function Welcome() {
   const [isLoading, setIsLoading] = useState(false);
   const [showJudgePassword, setShowJudgePassword] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
-
-  // useAuth: login teď vrací User (viz use-auth.tsx)
   const { login, logout } = useAuth();
   const { toast } = useToast();
 
   const judgeForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   const adminForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   const handleLogin = async (data: LoginForm, isAdmin: boolean) => {
     setIsLoading(true);
     try {
-      // case-insensitive email, password passed as-is (server should handle hashing/case)
       const emailLower = data.email.trim().toLowerCase();
       const passwordValue = data.password;
 
-      // login vrací usera (nejen nastaví stav) — podle toho kontrolujeme roli
       const loggedUser = await login(emailLower, passwordValue);
 
       if (!loggedUser) throw new Error("Uživatel nenalezen");
 
-      const role = (loggedUser as any).role; // typ závisí na tvém User typu
+      const role = (loggedUser as any).role;
 
       if (isAdmin && role !== "admin") {
         await logout();
@@ -90,10 +80,16 @@ export default function Welcome() {
         description: `Vítejte v systému${isAdmin ? " (Admin)" : ""}!`,
       });
     } catch (error: any) {
-      // Pokud login nebo kontrola role selže
+      // Tady upravíme hlášku, pokud server vrátí 401, přepíšeme na něco normálního
+      const message =
+        error.message?.toLowerCase().includes("401") ||
+        error.message?.toLowerCase().includes("unauthorized")
+          ? "Nesprávné heslo nebo email"
+          : error.message || "Neplatné přihlašovací údaje";
+
       toast({
         title: "Chyba přihlášení",
-        description: error?.message || "Neplatné přihlašovací údaje",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -110,12 +106,7 @@ export default function Welcome() {
           variant="ghost"
           size="icon"
           className="text-secondary hover:text-primary transition-colors"
-          onClick={() =>
-            window.open(
-              "https://husovka-ma-talent.gitbook.io/husovka-ma-talent-docs/",
-              "_blank"
-            )
-          }
+          onClick={() => window.open("https://husovka-ma-talent.gitbook.io/husovka-ma-talent-docs/", "_blank")}
         >
           <FileText className="w-6 h-6" />
         </Button>
@@ -139,9 +130,7 @@ export default function Welcome() {
               <DialogTitle className="text-center text-2xl font-bold text-secondary">
                 Administrátorské přihlášení
               </DialogTitle>
-              <p className="text-center text-secondary/75">
-                Zadejte admin přihlašovací údaje
-              </p>
+              <p className="text-center text-secondary/75">Zadejte admin přihlašovací údaje</p>
             </DialogHeader>
             <Form {...adminForm}>
               <form onSubmit={adminForm.handleSubmit((data) => handleLogin(data, true))} className="space-y-4">
@@ -152,12 +141,7 @@ export default function Welcome() {
                     <FormItem>
                       <FormLabel>Admin Email</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          type="email"
-                          placeholder="prijmeni@husovka.cz"
-                          className="rounded-lg"
-                        />
+                        <Input {...field} type="email" placeholder="prijmeni@husovka.cz" className="rounded-lg" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -199,16 +183,8 @@ export default function Welcome() {
                   >
                     Zrušit
                   </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1 rounded-lg"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <LoadingSpinner size="sm" className="mr-2" />
-                    ) : (
-                      <Key className="w-4 h-4 mr-2" />
-                    )}
+                  <Button type="submit" className="flex-1 rounded-lg" disabled={isLoading}>
+                    {isLoading ? <LoadingSpinner size="sm" className="mr-2" /> : <Key className="w-4 h-4 mr-2" />}
                     Přihlásit jako Admin
                   </Button>
                 </div>
@@ -221,11 +197,7 @@ export default function Welcome() {
       <div className="text-center max-w-md mx-auto px-6">
         {/* School Logo */}
         <div className="mb-8">
-          <img
-            src={logo}
-            alt="Logo školy"
-            className="w-56 h-56 mx-auto object-contain" /* zvětšené logo */
-          />
+          <img src={logo} alt="Logo školy" className="w-56 h-56 mx-auto object-contain" />
           <h1 className="text-4xl font-bold text-secondary mb-2">Husovka má talent</h1>
           <p className="text-lg text-secondary/75">Hlasovací systém pro porotce</p>
         </div>
@@ -243,7 +215,6 @@ export default function Welcome() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              {/* key ikona i u porotce — stejná jako v admin modal */}
               <div className="flex items-center justify-center mb-4">
                 <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
                   <Key className="w-6 h-6 text-white" />
@@ -252,9 +223,7 @@ export default function Welcome() {
               <DialogTitle className="text-center text-2xl font-bold text-secondary mb-2">
                 Přihlášení porotce
               </DialogTitle>
-              <p className="text-center text-secondary/75">
-                Zadejte vaše přihlašovací údaje
-              </p>
+              <p className="text-center text-secondary/75">Zadejte vaše přihlašovací údaje</p>
             </DialogHeader>
             <Form {...judgeForm}>
               <form onSubmit={judgeForm.handleSubmit((data) => handleLogin(data, false))} className="space-y-4">
@@ -265,12 +234,7 @@ export default function Welcome() {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          type="email"
-                          placeholder="prijmeni@husovka.cz"
-                          className="rounded-lg"
-                        />
+                        <Input {...field} type="email" placeholder="prijmeni@husovka.cz" className="rounded-lg" />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -312,16 +276,8 @@ export default function Welcome() {
                   >
                     Zrušit
                   </Button>
-                  <Button
-                    type="submit"
-                    className="flex-1 rounded-lg"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <LoadingSpinner size="sm" className="mr-2" />
-                    ) : (
-                      <LogIn className="w-4 h-4 mr-2" />
-                    )}
+                  <Button type="submit" className="flex-1 rounded-lg" disabled={isLoading}>
+                    {isLoading ? <LoadingSpinner size="sm" className="mr-2" /> : <LogIn className="w-4 h-4 mr-2" />}
                     Přihlásit
                   </Button>
                 </div>

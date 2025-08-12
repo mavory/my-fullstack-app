@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<User>;  // Promise<User> místo void
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   loading: boolean;
 }
@@ -15,13 +15,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const login = async (email: string, password: string): Promise<User> => {
+  const login = async (email: string, password: string) => {
     const response = await apiRequest("POST", "/api/auth/login", { email, password });
     const data = await response.json();
-
+    
     localStorage.setItem("token", data.token);
     setUser(data.user);
-    return data.user;  // tady vracíme usera, abys to mohl rovnou použít
   };
 
   const logout = async () => {
@@ -52,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       localStorage.removeItem("token");
     }
-
+    
     setLoading(false);
   };
 

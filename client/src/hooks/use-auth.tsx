@@ -4,7 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
   loading: boolean;
 }
@@ -15,12 +15,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     const response = await apiRequest("POST", "/api/auth/login", { email, password });
+
+    // pokud API vrátí chybu (401 apod.), nechceme ukládat token ani nastavovat user
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.message || errData.error || "Neplatné přihlašovací údaje");
+    }
+
     const data = await response.json();
-    
+
+    if (!data.token || !data.user) {
+      throw new Error("Neplatná odpověď ze serveru");
+    }
+
     localStorage.setItem("token", data.token);
     setUser(data.user);
+
+    return data.user;
   };
 
   const logout = async () => {
@@ -47,12 +60,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(data.user);
       } else {
         localStorage.removeItem("token");
+        setUser(null);
       }
-    } catch (error) {
+    } catch {
       localStorage.removeItem("token");
+      setUser(null);
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   useEffect(() => {

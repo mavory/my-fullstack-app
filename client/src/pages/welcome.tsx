@@ -7,7 +7,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Star, Key, LogIn, FileText } from "lucide-react";
+import { Star, Key, LogIn, FileText, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -22,7 +22,9 @@ export default function Welcome() {
   const [isJudgeModalOpen, setIsJudgeModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const [showJudgePassword, setShowJudgePassword] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const { login, getUserRole, logout } = useAuth();
   const { toast } = useToast();
 
   const judgeForm = useForm<LoginForm>({
@@ -44,7 +46,29 @@ export default function Welcome() {
   const handleLogin = async (data: LoginForm, isAdmin: boolean) => {
     setIsLoading(true);
     try {
-      await login(data.email, data.password);
+      const emailLower = data.email.trim().toLowerCase();
+      const passwordLower = data.password.toLowerCase();
+
+      // provede login (pozor: heslo se převádí na lowercase podle tvého požadavku)
+      await login(emailLower, passwordLower);
+
+      // pokud existuje getUserRole, ověříme roli; jinak nechat projít (záleží na implementationu useAuth)
+      if (typeof getUserRole === "function") {
+        const role = await getUserRole(emailLower);
+        if ((isAdmin && role !== "admin") || (!isAdmin && role !== "judge")) {
+          // pokud je k dispozici logout, odhlásíme uživatele, aby nezůstal přihlášený
+          if (typeof logout === "function") {
+            try { await logout(); } catch (e) { /* ignore */ }
+          }
+          toast({
+            title: "Chyba přihlášení",
+            description: "Neplatné přihlašovací údaje",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       setIsJudgeModalOpen(false);
       setIsAdminModalOpen(false);
       toast({
@@ -64,7 +88,6 @@ export default function Welcome() {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative bg-background overflow-hidden">
-
       {/* Dokumentace ikona vlevo nahoře */}
       <div className="absolute top-8 left-8">
         <Button
@@ -130,14 +153,23 @@ export default function Welcome() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Admin Heslo</FormLabel>
-                      <FormControl>
-                        <Input 
-                          {...field} 
-                          type="password" 
-                          placeholder="••••••••"
-                          className="rounded-lg"
-                        />
-                      </FormControl>
+                      <div className="relative">
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            type={showAdminPassword ? "text" : "password"} 
+                            placeholder="••••••••"
+                            className="rounded-lg pr-10"
+                          />
+                        </FormControl>
+                        <button
+                          type="button"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                          onClick={() => setShowAdminPassword(!showAdminPassword)}
+                        >
+                          {showAdminPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -180,7 +212,7 @@ export default function Welcome() {
           <p className="text-lg text-secondary/75">Hlasovací systém pro porotce</p>
         </div>
 
-        {/* Login Button */}
+        {/* login button (bez toho extra klíče nad ním) */}
         <Dialog open={isJudgeModalOpen} onOpenChange={setIsJudgeModalOpen}>
           <DialogTrigger asChild>
             <Button 
@@ -226,14 +258,23 @@ export default function Welcome() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Heslo</FormLabel>
-                      <FormControl>
-                        <Input 
-                          {...field} 
-                          type="password" 
-                          placeholder="••••••••"
-                          className="rounded-lg"
-                        />
-                      </FormControl>
+                      <div className="relative">
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            type={showJudgePassword ? "text" : "password"} 
+                            placeholder="••••••••"
+                            className="rounded-lg pr-10"
+                          />
+                        </FormControl>
+                        <button
+                          type="button"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                          onClick={() => setShowJudgePassword(!showJudgePassword)}
+                        >
+                          {showJudgePassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}

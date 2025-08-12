@@ -7,11 +7,10 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Key, LogIn, FileText, Eye, EyeOff } from "lucide-react";
+import { LogIn, Key, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-
-import logo from "@/assets/skola-logo.png";
+import logo from "@/assets/skola-logo.png";  // uprav si cestu podle sebe
 
 const loginSchema = z.object({
   email: z.string().email("Neplatný email"),
@@ -26,23 +25,18 @@ export default function Welcome() {
   const [isLoading, setIsLoading] = useState(false);
   const [showJudgePassword, setShowJudgePassword] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
-  const { user, login, logout } = useAuth();
+
+  const { login, logout } = useAuth();
   const { toast } = useToast();
 
   const judgeForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   const adminForm = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   const handleLogin = async (data: LoginForm, isAdmin: boolean) => {
@@ -51,19 +45,17 @@ export default function Welcome() {
       const emailLower = data.email.trim().toLowerCase();
       const passwordLower = data.password.toLowerCase();
 
-      await login(emailLower, passwordLower);
+      const loggedUser = await login(emailLower, passwordLower);
 
-      if (!user) {
-        throw new Error("Uživatel nenalezen");
-      }
+      if (!loggedUser) throw new Error("Uživatel nenalezen");
 
-      const role = user.role;
+      const role = loggedUser.role;
 
       if (isAdmin && role !== "admin") {
         await logout();
         toast({
           title: "Špatné přihlašovací pole",
-          description: "Tento účet není admin, přihlašte se v porotcovském přihlášení.",
+          description: "Tento účet není admin, přihlašte se přes porotcovské přihlášení.",
           variant: "destructive",
         });
         setIsLoading(false);
@@ -74,7 +66,7 @@ export default function Welcome() {
         await logout();
         toast({
           title: "Špatné přihlašovací pole",
-          description: "Tento účet není porotce, přihlašte se v admin přihlášení.",
+          description: "Tento účet není porotce, přihlašte se přes adminské přihlášení.",
           variant: "destructive",
         });
         setIsLoading(false);
@@ -100,6 +92,7 @@ export default function Welcome() {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative bg-background overflow-hidden">
+
       {/* Dokumentace ikona vlevo nahoře */}
       <div className="absolute top-8 left-8">
         <Button
@@ -113,7 +106,7 @@ export default function Welcome() {
             )
           }
         >
-          <FileText className="w-6 h-6" />
+          {/* Můžeš sem dát nějakou ikonku, co chceš */}
         </Button>
       </div>
 
@@ -161,17 +154,15 @@ export default function Welcome() {
                   control={adminForm.control}
                   name="password"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="relative">
                       <FormLabel>Admin Heslo</FormLabel>
-                      <div className="relative">
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type={showAdminPassword ? "text" : "password"}
-                            placeholder="••••••••"
-                            className="rounded-lg pr-10"
-                          />
-                        </FormControl>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type={showAdminPassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          className="rounded-lg pr-10"
+                        />
                         <button
                           type="button"
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
@@ -179,7 +170,7 @@ export default function Welcome() {
                         >
                           {showAdminPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
-                      </div>
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -218,13 +209,13 @@ export default function Welcome() {
           <img
             src={logo}
             alt="Logo školy"
-            className="w-20 h-20 mx-auto object-contain"
+            className="w-40 h-40 mx-auto object-contain"
           />
           <h1 className="text-4xl font-bold text-secondary mb-2">Husovka má talent</h1>
           <p className="text-lg text-secondary/75">Hlasovací systém pro porotce</p>
         </div>
 
-        {/* Login Button */}
+        {/* Judge Login Button */}
         <Dialog open={isJudgeModalOpen} onOpenChange={setIsJudgeModalOpen}>
           <DialogTrigger asChild>
             <Button
@@ -268,17 +259,15 @@ export default function Welcome() {
                   control={judgeForm.control}
                   name="password"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="relative">
                       <FormLabel>Heslo</FormLabel>
-                      <div className="relative">
-                        <FormControl>
-                          <Input
-                            {...field}
-                            type={showJudgePassword ? "text" : "password"}
-                            placeholder="••••••••"
-                            className="rounded-lg pr-10"
-                          />
-                        </FormControl>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type={showJudgePassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          className="rounded-lg pr-10"
+                        />
                         <button
                           type="button"
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
@@ -286,7 +275,7 @@ export default function Welcome() {
                         >
                           {showJudgePassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
-                      </div>
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

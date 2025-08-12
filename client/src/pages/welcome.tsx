@@ -7,9 +7,12 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Star, Key, LogIn, FileText, Eye, EyeOff } from "lucide-react";
+import { Key, LogIn, FileText, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+
+// Tady import loga, cesta podle tvýho projektu
+import logo from "@/assets/skola-logo.png";
 
 const loginSchema = z.object({
   email: z.string().email("Neplatný email"),
@@ -49,14 +52,11 @@ export default function Welcome() {
       const emailLower = data.email.trim().toLowerCase();
       const passwordLower = data.password.toLowerCase();
 
-      // provede login (pozor: heslo se převádí na lowercase podle tvého požadavku)
       await login(emailLower, passwordLower);
 
-      // pokud existuje getUserRole, ověříme roli; jinak nechat projít (záleží na implementationu useAuth)
       if (typeof getUserRole === "function") {
         const role = await getUserRole(emailLower);
         if ((isAdmin && role !== "admin") || (!isAdmin && role !== "judge")) {
-          // pokud je k dispozici logout, odhlásíme uživatele, aby nezůstal přihlášený
           if (typeof logout === "function") {
             try { await logout(); } catch (e) { /* ignore */ }
           }
@@ -206,13 +206,17 @@ export default function Welcome() {
         {/* School Logo */}
         <div className="mb-8">
           <div className="w-24 h-24 bg-primary rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <Star className="w-12 h-12 text-white" />
+            <img
+              src={logo}
+              alt="Logo školy"
+              className="w-12 h-12 object-contain"
+            />
           </div>
           <h1 className="text-4xl font-bold text-secondary mb-2">Husovka má talent</h1>
           <p className="text-lg text-secondary/75">Hlasovací systém pro porotce</p>
         </div>
 
-        {/* login button (bez toho extra klíče nad ním) */}
+        {/* Login Button */}
         <Dialog open={isJudgeModalOpen} onOpenChange={setIsJudgeModalOpen}>
           <DialogTrigger asChild>
             <Button 

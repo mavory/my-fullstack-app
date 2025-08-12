@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -15,8 +15,10 @@ export default function VotingInterface() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Polling aktivního kola každých 3 vteřin, aby se to aktualizovalo hned, jak se kolo vypne/zapne
   const { data: activeRound } = useQuery<Round>({
     queryKey: ["/api/rounds/active"],
+    refetchInterval: 1000,
   });
 
   const { data: contestants = [], isLoading } = useQuery<Contestant[]>({
@@ -36,6 +38,7 @@ export default function VotingInterface() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/votes/user", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/rounds/active"] }); // tady hned refetch aktivního kola
       toast({
         title: "Hlas zaznamenán",
         description: "Váš hlas byl úspěšně zaznamenán!",
@@ -50,7 +53,7 @@ export default function VotingInterface() {
     },
   });
 
-  const currentContestant = contestants[0]; // vždy jen první (aktuální) soutěžící
+  const currentContestant = contestants[0];
   const currentVote = userVotes.find((vote) => vote.contestantId === currentContestant?.id);
 
   const handleVote = (vote: boolean) => {
@@ -58,15 +61,6 @@ export default function VotingInterface() {
       voteMutation.mutate({ contestantId: currentContestant.id, vote });
     }
   };
-
-  // --- TADY přidáváme useEffect, co "resetne" cache nebo stav při ztrátě activeRound
-  useEffect(() => {
-    if (!activeRound) {
-      // třeba vynulujeme nějaký lokální stav nebo jen vynutíme refetch
-      queryClient.invalidateQueries(["/api/contestants/visible"]);
-      queryClient.invalidateQueries(["/api/votes/user", user?.id]);
-    }
-  }, [activeRound, queryClient, user?.id]);
 
   if (isLoading) {
     return (

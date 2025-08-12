@@ -10,7 +10,7 @@ import { z } from "zod";
 import { LogIn, Key, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import logo from "@/assets/skola-logo.png";  // uprav si cestu podle sebe
+import logo from "@/assets/skola-logo.png";
 
 const loginSchema = z.object({
   email: z.string().email("Neplatný email"),
@@ -42,6 +42,7 @@ export default function Welcome() {
   const handleLogin = async (data: LoginForm, isAdmin: boolean) => {
     setIsLoading(true);
     try {
+      // Case insensitive login
       const emailLower = data.email.trim().toLowerCase();
       const passwordLower = data.password.toLowerCase();
 
@@ -106,7 +107,7 @@ export default function Welcome() {
             )
           }
         >
-          {/* Můžeš sem dát nějakou ikonku, co chceš */}
+          {/* Tady můžeš dát ikonku */}
         </Button>
       </div>
 
@@ -209,9 +210,9 @@ export default function Welcome() {
           <img
             src={logo}
             alt="Logo školy"
-            className="w-40 h-40 mx-auto object-contain"
+            className="w-56 h-56 mx-auto object-contain"
           />
-          <h1 className="text-4xl font-bold text-secondary mb-2">Husovka má talent</h1>
+          <h1 className="text-5xl font-bold text-secondary mb-2">Husovka má talent</h1>
           <p className="text-lg text-secondary/75">Hlasovací systém pro porotce</p>
         </div>
 
@@ -219,7 +220,7 @@ export default function Welcome() {
         <Dialog open={isJudgeModalOpen} onOpenChange={setIsJudgeModalOpen}>
           <DialogTrigger asChild>
             <Button
-              className="w-full py-4 px-8 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 text-lg font-semibold"
+              className="w-full py-4 px-8 rounded-lg shadow-lg transition-all duration-200 text-lg font-semibold"
               size="lg"
             >
               <LogIn className="w-5 h-5 mr-2" />

@@ -26,6 +26,7 @@ export default function Welcome() {
   const [isLoading, setIsLoading] = useState(false);
   const [showJudgePassword, setShowJudgePassword] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
+
   const { user, login, logout } = useAuth();
   const { toast } = useToast();
 
@@ -49,13 +50,11 @@ export default function Welcome() {
     setIsLoading(true);
     try {
       const emailLower = data.email.trim().toLowerCase();
-      const passwordLower = data.password.toLowerCase();
+      const passwordLower = data.password;
 
       await login(emailLower, passwordLower);
 
-      if (!user) {
-        throw new Error("Uživatel nenalezen");
-      }
+      if (!user) throw new Error("Uživatel nenalezen");
 
       const role = user.role;
 
@@ -85,7 +84,7 @@ export default function Welcome() {
       setIsAdminModalOpen(false);
       toast({
         title: "Úspěšně přihlášen",
-        description: `Vítejte v systému${isAdmin ? " (Admin)" : ""}!`,
+        description: `Vítejte v systému${isAdmin ? " Admin" : ""}!`,
       });
     } catch (error) {
       toast({
@@ -212,32 +211,20 @@ export default function Welcome() {
         </Dialog>
       </div>
 
-      <div className="text-center max-w-md mx-auto px-6">
-        {/* School Logo */}
-        <div className="mb-8">
-          <img
-            src={logo}
-            alt="Logo školy"
-            className="w-20 h-20 mx-auto object-contain"
-          />
-          <h1 className="text-4xl font-bold text-secondary mb-2">Husovka má talent</h1>
-          <p className="text-lg text-secondary/75">Hlasovací systém pro porotce</p>
-        </div>
-
-        {/* Login Button */}
+      {/* Judge Key Icon vpravo nahoře (nově) */}
+      <div className="absolute top-20 right-8">
         <Dialog open={isJudgeModalOpen} onOpenChange={setIsJudgeModalOpen}>
           <DialogTrigger asChild>
-            <Button
-              className="w-full py-4 px-8 rounded-lg shadow-lg transition-all duration-200 transform hover:scale-105 text-lg font-semibold"
-              size="lg"
-            >
-              <LogIn className="w-5 h-5 mr-2" />
-              Přihlásit se
+            <Button variant="ghost" size="icon" className="text-secondary hover:text-primary transition-colors">
+              <Key className="w-6 h-6" />
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-center text-2xl font-bold text-secondary mb-2">
+              <div className="flex items-center justify-center mb-4">
+                <Key className="w-12 h-12 text-primary" />
+              </div>
+              <DialogTitle className="text-center text-2xl font-bold text-secondary">
                 Přihlášení porotce
               </DialogTitle>
               <p className="text-center text-secondary/75">
@@ -317,6 +304,19 @@ export default function Welcome() {
             </Form>
           </DialogContent>
         </Dialog>
+      </div>
+
+      <div className="text-center max-w-md mx-auto px-6">
+        {/* School Logo */}
+        <div className="mb-8">
+          <img
+            src={logo}
+            alt="Logo školy"
+            className="w-28 h-28 mx-auto object-contain" // zvětšil jsem
+          />
+          <h1 className="text-4xl font-bold text-secondary mb-2">Husovka má talent</h1>
+          <p className="text-lg text-secondary/75">Hlasovací systém pro porotce</p>
+        </div>
       </div>
     </div>
   );

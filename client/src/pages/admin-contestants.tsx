@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ArrowLeft, Plus, User, Edit, Trash2, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Plus, User, Edit, Trash2, GraduationCap, Cake, Music, Eye, EyeOff } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -18,16 +18,20 @@ import { useToast } from "@/hooks/use-toast";
 import type { Round, Contestant } from "@shared/schema";
 
 const contestantSchema = z.object({
-  name: z.string().min(1),
-  className: z.string().min(1),
+  name: z.string().min(1, "Jméno je povinné"),
+  className: z.string().min(1, "Třída je povinná"),
   age: z.number().min(6).max(18),
-  category: z.string().min(1),
+  category: z.string().min(1, "Kategorie je povinná"),
   description: z.string().optional(),
-  roundId: z.string().min(1),
+  roundId: z.string().min(1, "Kolo je povinné"),
   order: z.number().min(1),
 });
 
 type ContestantForm = z.infer<typeof contestantSchema>;
+
+const categories = [
+  "Zpěv","Tanec","Hraní na nástroj","Akrobacie","Ostatní","Kreativita","Sport","Drama","Instrumentální","Humor","Mluvené slovo","Multimédia","Týmové","Solo","DJ","Výtvarné umění","Komik","Stand-up","Kouzelnictví"
+];
 
 export default function AdminContestants() {
   const queryClient = useQueryClient();
@@ -35,10 +39,11 @@ export default function AdminContestants() {
 
   const [timers, setTimers] = useState<Record<string, number>>({});
   const [runningTimers, setRunningTimers] = useState<Record<string, boolean>>({});
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingContestant, setEditingContestant] = useState<Contestant | null>(null);
-  const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
+  const [selectedRoundForDialog, setSelectedRoundForDialog] = useState<string>("");
 
+  // časomíra
   useEffect(() => {
     const interval = setInterval(() => {
       setTimers(prev => {
@@ -63,7 +68,7 @@ export default function AdminContestants() {
       age: 12,
       category: "",
       description: "",
-      roundId: selectedRoundId || "",
+      roundId: selectedRoundForDialog || "",
       order: 1,
     },
   });
@@ -72,7 +77,7 @@ export default function AdminContestants() {
     mutationFn: async (data: ContestantForm) => apiRequest("POST", "/api/contestants", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contestants"] });
-      setIsDialogOpen(false);
+      setIsCreateDialogOpen(false);
       form.reset();
       toast({ title: "Soutěžící vytvořen" });
     },
@@ -90,10 +95,8 @@ export default function AdminContestants() {
 
   const deleteContestantMutation = useMutation({
     mutationFn: async (id: string) => {
-      // 1️⃣ nejdřív smažeme všechny votes
-      await apiRequest("DELETE", `/api/votes/contestant/${id}`);
-      // pak smažeme soutěžícího
-      return apiRequest("DELETE", `/api/contestants/${id}`);
+      await apiRequest("DELETE", `/api/votes/contestant/${id}`); // smaže hlasy
+      return apiRequest("DELETE", `/api/contestants/${id}`); // pak soutěžícího
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/contestants"] });
@@ -112,6 +115,7 @@ export default function AdminContestants() {
 
   const handleEdit = (c: Contestant) => {
     setEditingContestant(c);
+    setSelectedRoundForDialog(c.roundId);
     form.reset({
       name: c.name,
       className: c.className,
@@ -121,30 +125,34 @@ export default function AdminContestants() {
       roundId: c.roundId,
       order: c.order,
     });
-    setIsDialogOpen(true);
+    setIsCreateDialogOpen(true);
   };
-
-  const categories = [
-    "Zpěv","Tanec","Hraní na nástroj","Akrobacie","Ostatní","Kreativita","Sport","Drama","Instrumentální","Humor","Mluvené slovo","Multimédia","Týmové","Solo","DJ","Výtvarné umění","Komik","Stand-up","Kouzelnictví"
-  ];
 
   const getTimeColor = (s: number) => s < 120 ? "text-green-600" : s < 180 ? "text-orange-600" : "text-red-600";
 
   if(isLoading) return <div className="min-h-screen flex justify-center items-center"><LoadingSpinner size="lg"/></div>;
 
   return (
-    <div className="p-4 bg-background min-h-screen">
-      <div className="flex items-center mb-4">
-        <Link href="/admin"><Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5"/></Button></Link>
-        <h1 className="text-2xl font-bold ml-2">Správa soutěžících</h1>
+    <div className="min-h-screen p-4 sm:p-6 bg-background">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4">
+        <div className="flex items-center">
+          <Link href="/admin">
+            <Button variant="ghost" size="icon" className="mr-4">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-secondary">Správa soutěžících</h1>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid gap-4">
         {rounds.map(r => (
-          <Card key={r.id} className="p-4">
+          <Card key={r.id}>
             <CardHeader className="flex justify-between items-center">
               <CardTitle>{r.name}</CardTitle>
-              <Button size="icon" onClick={() => { setSelectedRoundId(r.id); setIsDialogOpen(true); setEditingContestant(null); }}>
+              <Button size="icon" onClick={() => { setSelectedRoundForDialog(r.id); setIsCreateDialogOpen(true); setEditingContestant(null); }}>
                 <Plus className="w-4 h-4"/>
               </Button>
             </CardHeader>
@@ -152,24 +160,36 @@ export default function AdminContestants() {
               {contestants.filter(c => c.roundId === r.id).length === 0 ? (
                 <p className="text-sm text-secondary/75">Žádní soutěžící</p>
               ) : (
-                <div className="space-y-2">
+                <div className="grid gap-4">
                   {contestants.filter(c => c.roundId === r.id).map(c => {
                     const time = timers[c.id]||0;
                     return (
-                      <div key={c.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                        <div>
-                          <p className="font-semibold">{c.name} ({c.category})</p>
-                          <p className="text-xs">{c.className} - {c.age} let</p>
-                          {time>0 && <span className={`text-xs font-semibold ${getTimeColor(time)}`}>{Math.floor(time/60)}:{(time%60).toString().padStart(2,"0")}</span>}
-                        </div>
-                        <div className="flex gap-1">
-                          <Button size="icon" variant={c.isVisibleToJudges?"outline":"default"} onClick={()=>toggleVisibilityMutation.mutate({id:c.id,isVisible:!c.isVisibleToJudges})}>
-                            {c.isVisibleToJudges?<EyeOff className="w-4 h-4"/><></>:<Eye className="w-4 h-4"/>}
-                          </Button>
-                          <Button size="icon" variant="outline" onClick={()=>handleEdit(c)}><Edit className="w-4 h-4"/></Button>
-                          <Button size="icon" variant="destructive" onClick={()=>deleteContestantMutation.mutate(c.id)}><Trash2 className="w-4 h-4"/></Button>
-                        </div>
-                      </div>
+                      <Card key={c.id}>
+                        <CardContent className="p-4 flex justify-between items-start sm:items-center">
+                          <div className="flex gap-4">
+                            <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
+                              <User className="w-8 h-8 text-gray-400"/>
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-semibold text-secondary">{c.name}</h3>
+                              <div className="flex flex-wrap gap-2 text-sm text-secondary/75 mt-1">
+                                <div className="flex items-center gap-1"><GraduationCap className="w-4 h-4"/>{c.className}</div>
+                                <div className="flex items-center gap-1"><Cake className="w-4 h-4"/>{c.age} let</div>
+                                <div className="flex items-center gap-1"><Music className="w-4 h-4"/>{c.category}</div>
+                              </div>
+                              {c.description && <p className="text-sm text-secondary/75 mt-1">{c.description}</p>}
+                              {time>0 && <span className={`ml-2 font-semibold ${getTimeColor(time)}`}>{Math.floor(time/60)}:{(time%60).toString().padStart(2,"0")}</span>}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="icon" variant={c.isVisibleToJudges?"outline":"default"} onClick={()=>toggleVisibilityMutation.mutate({id:c.id,isVisible:!c.isVisibleToJudges})}>
+                              {c.isVisibleToJudges?<EyeOff className="w-4 h-4"/>:<Eye className="w-4 h-4"/>}
+                            </Button>
+                            <Button size="icon" variant="outline" onClick={()=>handleEdit(c)}><Edit className="w-4 h-4"/></Button>
+                            <Button size="icon" variant="destructive" onClick={()=>deleteContestantMutation.mutate(c.id)}><Trash2 className="w-4 h-4"/></Button>
+                          </div>
+                        </CardContent>
+                      </Card>
                     )
                   })}
                 </div>
@@ -179,20 +199,18 @@ export default function AdminContestants() {
         ))}
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={open=>{ if(!open){setIsDialogOpen(false); setEditingContestant(null); form.reset();}}}>
+      <Dialog open={isCreateDialogOpen} onOpenChange={open=>{if(!open){setIsCreateDialogOpen(false);setEditingContestant(null);form.reset();}}}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingContestant?"Upravit soutěžícího":"Nový soutěžící"}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{editingContestant?"Upravit soutěžícího":"Nový soutěžící"}</DialogTitle></DialogHeader>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(data=>editingContestant?updateContestantMutation.mutate({id:editingContestant.id,data}):createContestantMutation.mutate(data))} className="space-y-4">
+            <form onSubmit={form.handleSubmit(data => editingContestant ? updateContestantMutation.mutate({id:editingContestant.id,data}) : createContestantMutation.mutate({...data, roundId:selectedRoundForDialog}))} className="space-y-4">
               <FormField control={form.control} name="name" render={({field})=><FormItem><FormLabel>Jméno</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>} />
               <FormField control={form.control} name="className" render={({field})=><FormItem><FormLabel>Třída</FormLabel><FormControl><Input {...field}/></FormControl><FormMessage/></FormItem>} />
               <FormField control={form.control} name="age" render={({field})=><FormItem><FormLabel>Věk</FormLabel><FormControl><Input {...field} type="number" onChange={e=>field.onChange(parseInt(e.target.value))}/></FormControl><FormMessage/></FormItem>} />
-              <FormField control={form.control} name="category" render={({field})=><FormItem><FormLabel>Kategorie</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormTrigger><SelectValue placeholder="Vyberte kategorii"/></FormTrigger><SelectContent>{categories.map(cat=><SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select><FormMessage/></FormItem>} />
+              <FormField control={form.control} name="category" render={({field})=><FormItem><FormLabel>Kategorie</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger><SelectValue placeholder="Vyberte kategorii"/></SelectTrigger><SelectContent>{categories.map(cat=><SelectItem key={cat} value={cat}>{cat}</SelectItem>)}</SelectContent></Select><FormMessage/></FormItem>} />
               <FormField control={form.control} name="description" render={({field})=><FormItem><FormLabel>Popis</FormLabel><FormControl><Textarea {...field}/></FormControl><FormMessage/></FormItem>} />
               <div className="flex gap-2">
-                <Button type="button" variant="secondary" onClick={()=>{setIsDialogOpen(false);setEditingContestant(null);form.reset();}}>Zrušit</Button>
+                <Button type="button" variant="secondary" onClick={()=>{setIsCreateDialogOpen(false);setEditingContestant(null);form.reset();}}>Zrušit</Button>
                 <Button type="submit">{editingContestant?"Upravit":"Vytvořit"}</Button>
               </div>
             </form>

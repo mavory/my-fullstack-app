@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ArrowLeft, Plus, User, Edit, Trash2, Shield, Eye, EyeOff, Mail } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Eye, EyeOff, Mail } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -13,7 +13,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { User as UserType, Vote } from "@shared/schema";
+import type { User as UserType, Vote, Contestant } from "@shared/schema";
 
 const userSchema = z.object({
   name: z.string().min(1, "Jméno je povinné"),
@@ -37,6 +37,10 @@ export default function AdminJudges() {
 
   const { data: votes = [], isLoading: votesLoading } = useQuery<Vote[]>({
     queryKey: ["/api/votes"],
+  });
+
+  const { data: contestants = [] } = useQuery<Contestant[]>({
+    queryKey: ["/api/contestants"],
   });
 
   const judges = users.filter(user => user.role === "judge");
@@ -90,6 +94,9 @@ export default function AdminJudges() {
   };
 
   if (usersLoading || votesLoading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
+
+  const getUserName = (userId: string) => users.find(u => u.id === userId)?.name || userId;
+  const getContestantName = (contestantId: string) => contestants.find(c => c.id === contestantId)?.name || contestantId;
 
   return (
     <div className="min-h-screen p-4 md:p-6 bg-background">
@@ -186,20 +193,22 @@ export default function AdminJudges() {
           </Card>
         ))}
 
-        {/* Log */}
+        {/* Log hlasování */}
         <Card className="bg-black text-white font-mono">
           <CardHeader>
             <CardTitle>Log hlasování</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1 max-h-96 overflow-y-auto">
             {votes.map(vote => (
-              <div key={vote.id}>
-                {new Date(vote.createdAt).toLocaleString()} - {vote.userId} hlasoval pro {vote.contestantId} - {vote.vote ? "👍" : "👎"}
+              <div key={vote.id} className="flex justify-between">
+                <span>{new Date(vote.createdAt).toLocaleString()}</span>
+                <span>{getUserName(vote.userId)}</span>
+                <span>{getContestantName(vote.contestantId)}</span>
+                <span>{vote.vote ? "✅" : "❌"}</span>
               </div>
             ))}
           </CardContent>
         </Card>
-
       </div>
     </div>
   );

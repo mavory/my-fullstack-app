@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ArrowLeft, Plus, Edit, Trash2, Eye, EyeOff, Mail } from "lucide-react";
+import { ArrowLeft, Plus, Edit, Trash2, Shield, User, Eye, EyeOff } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -13,7 +13,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { User as UserType, Vote, Contestant } from "@shared/schema";
+import type { User as UserType, Vote as VoteType } from "@shared/schema";
 
 const userSchema = z.object({
   name: z.string().min(1, "Jméno je povinné"),
@@ -26,35 +26,35 @@ type UserForm = z.infer<typeof userSchema>;
 export default function AdminJudges() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
-  const [roleToCreate, setRoleToCreate] = useState<"judge" | "admin">("judge");
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Načtení uživatelů
   const { data: users = [], isLoading: usersLoading } = useQuery<UserType[]>({
     queryKey: ["/api/users"],
+    staleTime: 1000 * 60,
   });
 
-  const { data: votes = [], isLoading: votesLoading } = useQuery<Vote[]>({
+  // Načtení hlasů
+  const { data: votes = [], isLoading: votesLoading } = useQuery<VoteType[]>({
     queryKey: ["/api/votes"],
+    staleTime: 1000 * 60,
   });
 
-  const { data: contestants = [] } = useQuery<Contestant[]>({
-    queryKey: ["/api/contestants"],
-  });
-
-  const judges = users.filter(user => user.role === "judge");
-  const admins = users.filter(user => user.role === "admin");
+  const judges = users.filter(u => u.role === "judge");
+  const admins = users.filter(u => u.role === "admin");
 
   const form = useForm<UserForm>({
     resolver: zodResolver(userSchema),
     defaultValues: { name: "", email: "", password: "" },
   });
 
+  // Mutace vytvoření uživatele
   const createUserMutation = useMutation({
     mutationFn: async (data: UserForm & { role: string }) => {
-      const response = await apiRequest("POST", "/api/auth/register", data);
-      return response.json();
+      const res = await apiRequest("POST", "/api/auth/register", data);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
@@ -62,41 +62,45 @@ export default function AdminJudges() {
       form.reset();
       toast({ title: "Uživatel vytvořen", description: "Účet byl přidán." });
     },
-    onError: (error: any) => {
-      toast({ title: "Chyba", description: error.message || "Nepodařilo se vytvořit účet", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "Chyba", description: err.message || "Nepodařilo se vytvořit účet", variant: "destructive" });
     },
   });
 
-  const handleCreateUser = (data: UserForm) => {
-    createUserMutation.mutate({ ...data, role: roleToCreate });
-  };
+  // Mutace aktualizace
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<UserForm> }) => {
+      const res = await apiRequest("PUT", `/api/users/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      setEditingUser(null);
+      form.reset();
+      toast({ title: "Uživatel upraven", description: "Údaje byly upraveny." });
+    },
+    onError: () => toast({ title: "Chyba", description: "Nepodařilo se upravit účet", variant: "destructive" }),
+  });
 
+  const handleCreateUser = (data: UserForm, role: string) => createUserMutation.mutate({ ...data, role });
   const handleEditUser = (user: UserType) => {
     setEditingUser(user);
     form.reset({ name: user.name, email: user.email, password: "" });
   };
-
   const handleUpdateUser = (data: UserForm) => {
     if (editingUser) {
       const updateData = data.password ? data : { ...data, password: undefined };
-      createUserMutation.mutate({ ...updateData, role: editingUser.role });
-      setEditingUser(null);
+      updateUserMutation.mutate({ id: editingUser.id, data: updateData });
     }
   };
 
   const handleDeleteUser = (id: string) => {
     if (confirm("Opravdu chcete smazat tento účet?")) {
-      apiRequest("DELETE", `/api/users/${id}`, {}).then(() => {
-        queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-        toast({ title: "Účet smazán", description: "Uživatel byl odebrán." });
-      });
+      apiRequest("DELETE", `/api/users/${id}`, {}).then(() => queryClient.invalidateQueries({ queryKey: ["/api/users"] }));
     }
   };
 
   if (usersLoading || votesLoading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
-
-  const getUserName = (userId: string) => users.find(u => u.id === userId)?.name || userId;
-  const getContestantName = (contestantId: string) => contestants.find(c => c.id === contestantId)?.name || contestantId;
 
   return (
     <div className="min-h-screen p-4 md:p-6 bg-background">
@@ -109,28 +113,23 @@ export default function AdminJudges() {
       </div>
 
       <div className="max-w-4xl mx-auto space-y-8">
-        {[{ title: "Porotci", data: judges, role: "judge" }, { title: "Admini", data: admins, role: "admin" }].map(({ title, data, role }) => (
+        {[{ title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" },
+          { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" }].map(({ title, data, icon, role }) => (
           <Card key={role}>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>{title} ({data.length})</CardTitle>
-              <Dialog open={isCreateDialogOpen && roleToCreate === role} onOpenChange={(open) => {
-                if (!open) {
-                  setIsCreateDialogOpen(false);
-                  setEditingUser(null);
-                  form.reset();
-                }
+              <CardTitle className="flex items-center gap-2">{icon}{title} ({data.length})</CardTitle>
+              <Dialog open={isCreateDialogOpen || !!editingUser} onOpenChange={(open) => {
+                if (!open) { setIsCreateDialogOpen(false); setEditingUser(null); form.reset(); }
               }}>
                 <DialogTrigger asChild>
-                  <Button size="sm" onClick={() => { setIsCreateDialogOpen(true); setRoleToCreate(role); }}>
-                    <Plus className="w-4 h-4 mr-2" />Nový {role}
-                  </Button>
+                  <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}><Plus className="w-4 h-4 mr-2" />Nový {role}</Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-sm">
                   <DialogHeader>
                     <DialogTitle>{editingUser ? "Upravit účet" : `Vytvořit ${role}`}</DialogTitle>
                   </DialogHeader>
                   <Form {...form}>
-                    <form onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : handleCreateUser)} className="space-y-4">
+                    <form onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : (data) => handleCreateUser(data, role))} className="space-y-4">
                       <FormField control={form.control} name="name" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Jméno a příjmení</FormLabel>
@@ -154,19 +153,19 @@ export default function AdminJudges() {
                           <FormLabel>Heslo</FormLabel>
                           <div className="relative">
                             <FormControl>
-                              <Input {...field} type={showPassword ? "text" : "password"} placeholder="••••••••" />
+                              <Input {...field} type={showPassword ? "text" : "password"} placeholder="••••••" />
                             </FormControl>
-                            <Button type="button" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2 p-1" onClick={() => setShowPassword(!showPassword)}>
+                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-1/2 -translate-y-1/2">
                               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </Button>
+                            </button>
                           </div>
                           <FormMessage />
                         </FormItem>
                       )} />
                       <div className="flex justify-end gap-2 pt-2">
                         <Button type="button" variant="secondary" onClick={() => { setIsCreateDialogOpen(false); setEditingUser(null); form.reset(); }}>Zrušit</Button>
-                        <Button type="submit" disabled={createUserMutation.isPending}>
-                          {(createUserMutation.isPending) ? <LoadingSpinner size="sm" className="mr-2" /> : <Plus className="w-4 h-4 mr-2" />} {editingUser ? "Upravit" : "Vytvořit"}
+                        <Button type="submit" disabled={createUserMutation.isPending || updateUserMutation.isPending}>
+                          {(createUserMutation.isPending || updateUserMutation.isPending) ? <LoadingSpinner size="sm" className="mr-2" /> : <Plus className="w-4 h-4 mr-2" />} {editingUser ? "Upravit" : "Vytvořit"}
                         </Button>
                       </div>
                     </form>
@@ -175,12 +174,15 @@ export default function AdminJudges() {
               </Dialog>
             </CardHeader>
             <CardContent className="space-y-4">
-              {data.map((user) => (
+              {data.map(user => (
                 <Card key={user.id} className="bg-background">
-                  <CardContent className="flex justify-between items-center">
-                    <div>
-                      <div className="font-semibold">{user.name}</div>
-                      <div className="flex items-center gap-1 text-sm text-secondary/75"><Mail className="w-4 h-4" />{user.email}</div>
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      {icon}
+                      <div className="flex flex-col text-white">
+                        <span className="font-semibold">{user.name}</span>
+                        <span className="text-sm text-white/70">{user.email}</span>
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}><Edit className="w-4 h-4" /></Button>
@@ -193,20 +195,33 @@ export default function AdminJudges() {
           </Card>
         ))}
 
-        {/* Log hlasování */}
-        <Card className="bg-black text-white font-mono">
+        {/* Log hlasů */}
+        <Card className="bg-black text-white">
           <CardHeader>
-            <CardTitle>Log hlasování</CardTitle>
+            <CardTitle>Log hlasování porotců</CardTitle>
+            <p className="text-sm text-white/70">Zobrazuje všechny hlasy z tabulky votes</p>
           </CardHeader>
-          <CardContent className="space-y-1 max-h-96 overflow-y-auto">
-            {votes.map(vote => (
-              <div key={vote.id} className="flex justify-between">
-                <span>{new Date(vote.createdAt).toLocaleString()}</span>
-                <span>{getUserName(vote.userId)}</span>
-                <span>{getContestantName(vote.contestantId)}</span>
-                <span>{vote.vote ? "✅" : "❌"}</span>
-              </div>
-            ))}
+          <CardContent className="overflow-x-auto">
+            <table className="w-full text-left border-separate border-spacing-y-1">
+              <thead>
+                <tr>
+                  <th className="pr-4">Čas</th>
+                  <th className="pr-4">Porotce</th>
+                  <th className="pr-4">Soutěžící</th>
+                  <th className="pr-4">Hlas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {votes.map(v => (
+                  <tr key={v.id} className="border-b border-white/20">
+                    <td>{new Date(v.createdAt).toLocaleString("cs-CZ")}</td>
+                    <td>{users.find(u => u.id === v.userId)?.name || "Neznámo"}</td>
+                    <td>{v.contestantId}</td>
+                    <td>{v.vote ? "Pro" : "Proti"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </CardContent>
         </Card>
       </div>

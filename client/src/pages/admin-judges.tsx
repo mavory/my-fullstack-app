@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { Eye, EyeOff, ArrowLeft, Plus, User, Edit, Trash2, Shield } from "lucide-react";
+import { ArrowLeft, Plus, User, Edit, Trash2, Shield, Eye, EyeOff, Mail } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -26,25 +26,17 @@ type UserForm = z.infer<typeof userSchema>;
 export default function AdminJudges() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
+  const [roleToCreate, setRoleToCreate] = useState<"judge" | "admin">("judge");
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // ✅ Fetch users properly
   const { data: users = [], isLoading: usersLoading } = useQuery<UserType[]>({
     queryKey: ["/api/users"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/api/users");
-      return res.json();
-    },
   });
 
-  const { data: votes = [] } = useQuery<Vote[]>({
+  const { data: votes = [], isLoading: votesLoading } = useQuery<Vote[]>({
     queryKey: ["/api/votes"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/api/votes");
-      return res.json();
-    },
   });
 
   const judges = users.filter(user => user.role === "judge");
@@ -71,103 +63,33 @@ export default function AdminJudges() {
     },
   });
 
-  const updateUserMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<UserForm> }) => {
-      const response = await apiRequest("PUT", `/api/users/${id}`, data);
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      setEditingUser(null);
-      form.reset();
-      toast({ title: "Uživatel upraven", description: "Údaje byly upraveny." });
-    },
-    onError: () => {
-      toast({ title: "Chyba", description: "Nepodařilo se upravit účet", variant: "destructive" });
-    },
-  });
-
-  const deleteUserMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await apiRequest("DELETE", `/api/users/${id}`, {});
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
-      toast({ title: "Účet smazán", description: "Uživatel byl odebrán." });
-    },
-    onError: () => {
-      toast({ title: "Chyba", description: "Nepodařilo se smazat účet", variant: "destructive" });
-    },
-  });
-
-  const handleCreateUser = (data: UserForm, role: string) => {
-    createUserMutation.mutate({ ...data, role });
+  const handleCreateUser = (data: UserForm) => {
+    createUserMutation.mutate({ ...data, role: roleToCreate });
   };
 
   const handleEditUser = (user: UserType) => {
     setEditingUser(user);
     form.reset({ name: user.name, email: user.email, password: "" });
-    setShowPassword(false);
   };
 
   const handleUpdateUser = (data: UserForm) => {
     if (editingUser) {
       const updateData = data.password ? data : { ...data, password: undefined };
-      updateUserMutation.mutate({ id: editingUser.id, data: updateData });
+      createUserMutation.mutate({ ...updateData, role: editingUser.role });
+      setEditingUser(null);
     }
   };
 
   const handleDeleteUser = (id: string) => {
     if (confirm("Opravdu chcete smazat tento účet?")) {
-      deleteUserMutation.mutate(id);
+      apiRequest("DELETE", `/api/users/${id}`, {}).then(() => {
+        queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+        toast({ title: "Účet smazán", description: "Uživatel byl odebrán." });
+      });
     }
   };
 
-  const generateEmailFromName = (name: string) => {
-    const parts = name.trim().split(" ");
-    if (parts.length >= 2) {
-      const surname = parts[parts.length - 1];
-      const normalized = surname.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
-      return `${normalized}@husovka.cz`;
-    }
-    return "";
-  };
-
-  const handleNameChange = (name: string) => {
-    const email = generateEmailFromName(name);
-    if (email) form.setValue("email", email);
-  };
-
-  if (usersLoading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
-
-  const renderUserCard = (user: UserType, labelIcon: React.ReactNode) => (
-    <Card key={user.id} className="bg-background">
-      <CardContent className="p-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
-            {labelIcon}
-          </div>
-          <div className="flex-1 text-center sm:text-left">
-            <h3 className="font-semibold text-secondary">{user.name}</h3>
-            <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-secondary/75">
-              {user.email}
-            </div>
-          </div>
-          <div className="text-center sm:text-right">
-            <div className="text-sm text-secondary/75">
-              Vytvořen: {user.createdAt ? new Date(user.createdAt).toLocaleDateString("cs-CZ") : "Neznámo"}
-            </div>
-            <div className="text-xs text-success">Aktivní</div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}><Edit className="w-4 h-4" /></Button>
-            <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user.id)}><Trash2 className="w-4 h-4" /></Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+  if (usersLoading || votesLoading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
 
   return (
     <div className="min-h-screen p-4 md:p-6 bg-background">
@@ -180,32 +102,33 @@ export default function AdminJudges() {
       </div>
 
       <div className="max-w-4xl mx-auto space-y-8">
-
-        {[{ title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" },
-          { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" }].map(({ title, data, icon, role }) => (
+        {[{ title: "Porotci", data: judges, role: "judge" }, { title: "Admini", data: admins, role: "admin" }].map(({ title, data, role }) => (
           <Card key={role}>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">{icon}{title} ({data.length})</CardTitle>
-              <Dialog open={isCreateDialogOpen || !!editingUser} onOpenChange={(open) => {
+              <CardTitle>{title} ({data.length})</CardTitle>
+              <Dialog open={isCreateDialogOpen && roleToCreate === role} onOpenChange={(open) => {
                 if (!open) {
                   setIsCreateDialogOpen(false);
                   setEditingUser(null);
                   form.reset();
-                  setShowPassword(false);
                 }
               }}>
                 <DialogTrigger asChild>
-                  <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}><Plus className="w-4 h-4 mr-2" />Nový {role}</Button>
+                  <Button size="sm" onClick={() => { setIsCreateDialogOpen(true); setRoleToCreate(role); }}>
+                    <Plus className="w-4 h-4 mr-2" />Nový {role}
+                  </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-sm">
-                  <DialogHeader><DialogTitle>{editingUser ? "Upravit účet" : `Vytvořit ${title.toLowerCase()}`}</DialogTitle></DialogHeader>
+                  <DialogHeader>
+                    <DialogTitle>{editingUser ? "Upravit účet" : `Vytvořit ${role}`}</DialogTitle>
+                  </DialogHeader>
                   <Form {...form}>
-                    <form onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : (data) => handleCreateUser(data, role))} className="space-y-4">
+                    <form onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : handleCreateUser)} className="space-y-4">
                       <FormField control={form.control} name="name" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Jméno a příjmení</FormLabel>
                           <FormControl>
-                            <Input {...field} placeholder="Jan Novák" onChange={(e) => { field.onChange(e); handleNameChange(e.target.value); }} />
+                            <Input {...field} placeholder="Jan Novák" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -226,17 +149,17 @@ export default function AdminJudges() {
                             <FormControl>
                               <Input {...field} type={showPassword ? "text" : "password"} placeholder="••••••••" />
                             </FormControl>
-                            <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2" onClick={() => setShowPassword(!showPassword)}>
-                              {showPassword ? <EyeOff /> : <Eye />}
-                            </button>
+                            <Button type="button" size="icon" className="absolute right-2 top-1/2 -translate-y-1/2 p-1" onClick={() => setShowPassword(!showPassword)}>
+                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </Button>
                           </div>
                           <FormMessage />
                         </FormItem>
                       )} />
                       <div className="flex justify-end gap-2 pt-2">
-                        <Button type="button" variant="secondary" onClick={() => { setIsCreateDialogOpen(false); setEditingUser(null); form.reset(); setShowPassword(false); }}>Zrušit</Button>
-                        <Button type="submit" disabled={createUserMutation.isPending || updateUserMutation.isPending}>
-                          {(createUserMutation.isPending || updateUserMutation.isPending) ? "..." : editingUser ? "Upravit" : "Vytvořit"}
+                        <Button type="button" variant="secondary" onClick={() => { setIsCreateDialogOpen(false); setEditingUser(null); form.reset(); }}>Zrušit</Button>
+                        <Button type="submit" disabled={createUserMutation.isPending}>
+                          {(createUserMutation.isPending) ? <LoadingSpinner size="sm" className="mr-2" /> : <Plus className="w-4 h-4 mr-2" />} {editingUser ? "Upravit" : "Vytvořit"}
                         </Button>
                       </div>
                     </form>
@@ -245,19 +168,33 @@ export default function AdminJudges() {
               </Dialog>
             </CardHeader>
             <CardContent className="space-y-4">
-              {data.map((user) => renderUserCard(user, icon))}
+              {data.map((user) => (
+                <Card key={user.id} className="bg-background">
+                  <CardContent className="flex justify-between items-center">
+                    <div>
+                      <div className="font-semibold">{user.name}</div>
+                      <div className="flex items-center gap-1 text-sm text-secondary/75"><Mail className="w-4 h-4" />{user.email}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}><Edit className="w-4 h-4" /></Button>
+                      <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user.id)}><Trash2 className="w-4 h-4" /></Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </CardContent>
           </Card>
         ))}
 
-        {/* CMD style log */}
-        <Card className="bg-black text-white">
-          <CardHeader><CardTitle>Log hlasování porotců</CardTitle></CardHeader>
-          <CardContent className="font-mono text-sm space-y-1">
-            {votes.length === 0 && <div>Žádná data</div>}
-            {votes.map((v) => (
-              <div key={v.id}>
-                {v.userId} → {v.contestantId} | {v.vote ? "Pro" : "Proti"} | {new Date(v.createdAt).toLocaleString()}
+        {/* Log */}
+        <Card className="bg-black text-white font-mono">
+          <CardHeader>
+            <CardTitle>Log hlasování</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 max-h-96 overflow-y-auto">
+            {votes.map(vote => (
+              <div key={vote.id}>
+                {new Date(vote.createdAt).toLocaleString()} - {vote.userId} hlasoval pro {vote.contestantId} - {vote.vote ? "👍" : "👎"}
               </div>
             ))}
           </CardContent>

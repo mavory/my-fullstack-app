@@ -50,17 +50,17 @@ export default function AdminJudges() {
     defaultValues: { name: "", email: "", password: "" },
   });
 
-  // Mutace vytvoření uživatele
+  // Mutace vytvoření uživatele (jen judge)
   const createUserMutation = useMutation({
-    mutationFn: async (data: UserForm & { role: string }) => {
-      const res = await apiRequest("POST", "/api/auth/register", data);
+    mutationFn: async (data: UserForm) => {
+      const res = await apiRequest("POST", "/api/auth/register", { ...data, role: "judge" });
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setIsCreateDialogOpen(false);
       form.reset();
-      toast({ title: "Uživatel vytvořen", description: "Účet byl přidán." });
+      toast({ title: "Porotce vytvořen", description: "Účet byl přidán." });
     },
     onError: (err: any) => {
       toast({ title: "Chyba", description: err.message || "Nepodařilo se vytvořit účet", variant: "destructive" });
@@ -82,11 +82,11 @@ export default function AdminJudges() {
     onError: () => toast({ title: "Chyba", description: "Nepodařilo se upravit účet", variant: "destructive" }),
   });
 
-  const handleCreateUser = (data: UserForm, role: string) => createUserMutation.mutate({ ...data, role });
   const handleEditUser = (user: UserType) => {
     setEditingUser(user);
     form.reset({ name: user.name, email: user.email, password: "" });
   };
+
   const handleUpdateUser = (data: UserForm) => {
     if (editingUser) {
       const updateData = data.password ? data : { ...data, password: undefined };
@@ -113,87 +113,111 @@ export default function AdminJudges() {
       </div>
 
       <div className="max-w-4xl mx-auto space-y-8">
-        {[{ title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" },
-          { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" }].map(({ title, data, icon, role }) => (
-          <Card key={role}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">{icon}{title} ({data.length})</CardTitle>
-              <Dialog open={isCreateDialogOpen || !!editingUser} onOpenChange={(open) => {
-                if (!open) { setIsCreateDialogOpen(false); setEditingUser(null); form.reset(); }
-              }}>
-                <DialogTrigger asChild>
-                  <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}><Plus className="w-4 h-4 mr-2" />Nový {role}</Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-sm">
-                  <DialogHeader>
-                    <DialogTitle>{editingUser ? "Upravit účet" : `Vytvořit ${role}`}</DialogTitle>
-                  </DialogHeader>
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : (data) => handleCreateUser(data, role))} className="space-y-4">
-                      <FormField control={form.control} name="name" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Jméno a příjmení</FormLabel>
+        {/* Porotci */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2"><User className="text-white w-6 h-6" />Porotci ({judges.length})</CardTitle>
+            <Dialog open={isCreateDialogOpen || !!editingUser} onOpenChange={(open) => {
+              if (!open) { setIsCreateDialogOpen(false); setEditingUser(null); form.reset(); }
+            }}>
+              <DialogTrigger asChild>
+                <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}><Plus className="w-4 h-4 mr-2" />Nový judge</Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>{editingUser ? "Upravit účet" : "Vytvořit judge"}</DialogTitle>
+                </DialogHeader>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : createUserMutation.mutate)} className="space-y-4">
+                    <FormField control={form.control} name="name" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Jméno a příjmení</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="Jan Novák" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="email" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="novak@husovka.cz" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="password" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Heslo</FormLabel>
+                        <div className="relative">
                           <FormControl>
-                            <Input {...field} placeholder="Jan Novák" />
+                            <Input {...field} type={showPassword ? "text" : "password"} placeholder="••••••" />
                           </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="email" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="novak@husovka.cz" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="password" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Heslo</FormLabel>
-                          <div className="relative">
-                            <FormControl>
-                              <Input {...field} type={showPassword ? "text" : "password"} placeholder="••••••" />
-                            </FormControl>
-                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-1/2 -translate-y-1/2">
-                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                            </button>
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <div className="flex justify-end gap-2 pt-2">
-                        <Button type="button" variant="secondary" onClick={() => { setIsCreateDialogOpen(false); setEditingUser(null); form.reset(); }}>Zrušit</Button>
-                        <Button type="submit" disabled={createUserMutation.isPending || updateUserMutation.isPending}>
-                          {(createUserMutation.isPending || updateUserMutation.isPending) ? <LoadingSpinner size="sm" className="mr-2" /> : <Plus className="w-4 h-4 mr-2" />} {editingUser ? "Upravit" : "Vytvořit"}
-                        </Button>
-                      </div>
-                    </form>
-                  </Form>
-                </DialogContent>
-              </Dialog>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {data.map(user => (
-                <Card key={user.id} className="bg-background">
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      {icon}
-                      <div className="flex flex-col text-white">
-                        <span className="font-semibold">{user.name}</span>
-                        <span className="text-sm text-white/70">{user.email}</span>
-                      </div>
+                          <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-1/2 -translate-y-1/2">
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button type="button" variant="secondary" onClick={() => { setIsCreateDialogOpen(false); setEditingUser(null); form.reset(); }}>Zrušit</Button>
+                      <Button type="submit" disabled={createUserMutation.isPending || updateUserMutation.isPending}>
+                        {(createUserMutation.isPending || updateUserMutation.isPending) ? <LoadingSpinner size="sm" className="mr-2" /> : <Plus className="w-4 h-4 mr-2" />} {editingUser ? "Upravit" : "Vytvořit"}
+                      </Button>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}><Edit className="w-4 h-4" /></Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user.id)}><Trash2 className="w-4 h-4" /></Button>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {judges.map(user => (
+              <Card key={user.id} className="bg-background">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <User className="text-white w-6 h-6" />
+                    <div className="flex flex-col text-white">
+                      <span className="font-semibold">{user.name}</span>
+                      <span className="text-sm text-white/70">{user.email}</span>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </CardContent>
-          </Card>
-        ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}><Edit className="w-4 h-4" /></Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user.id)}><Trash2 className="w-4 h-4" /></Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* Admini */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Shield className="text-white w-6 h-6" />Admini ({admins.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {admins.map(user => (
+              <Card key={user.id} className="bg-background">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <Shield className="text-white w-6 h-6" />
+                    <div className="flex flex-col text-white">
+                      <span className="font-semibold">{user.name}</span>
+                      <span className="text-sm text-white/70">{user.email}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm"><Edit className="w-4 h-4" /></Button>
+                    <Button variant="outline" size="sm"><Trash2 className="w-4 h-4" /></Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </CardContent>
+        </Card>
 
         {/* Log hlasů */}
         <Card className="bg-black text-white">

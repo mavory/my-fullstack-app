@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ArrowLeft, Plus, UserCheck, Mail, User, Edit, Trash2, Shield } from "lucide-react";
+import { ArrowLeft, Plus, User, Edit, Trash2, Shield, Mail, Eye, EyeOff, FileText } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -13,7 +13,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { User as UserType } from "@shared/schema";
+import type { User as UserType, Vote } from "@shared/schema";
+import jsPDF from "jspdf";
 
 const userSchema = z.object({
   name: z.string().min(1, "Jméno je povinné"),
@@ -26,11 +27,18 @@ type UserForm = z.infer<typeof userSchema>;
 export default function AdminJudges() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
+  const [currentRole, setCurrentRole] = useState<"judge" | "admin">("judge");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showLog, setShowLog] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: users = [], isLoading } = useQuery<UserType[]>({
+  const { data: users = [], isLoading: usersLoading } = useQuery<UserType[]>({
     queryKey: ["/api/users"],
+  });
+
+  const { data: votes = [], isLoading: votesLoading } = useQuery<Vote[]>({
+    queryKey: ["/api/votes"],
   });
 
   const judges = users.filter(user => user.role === "judge");
@@ -87,8 +95,8 @@ export default function AdminJudges() {
     },
   });
 
-  const handleCreateUser = (data: UserForm, role: string) => {
-    createUserMutation.mutate({ ...data, role });
+  const handleCreateUser = (data: UserForm) => {
+    createUserMutation.mutate({ ...data, role: currentRole });
   };
 
   const handleEditUser = (user: UserType) => {
@@ -124,15 +132,25 @@ export default function AdminJudges() {
     if (email) form.setValue("email", email);
   };
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    doc.setFont("Courier");
+    doc.setFontSize(10);
+    votes.forEach((v, i) => {
+      const user = users.find(u => u.id === v.userId)?.name || "Neznámý";
+      const line = `[${new Date(v.createdAt).toLocaleString()}] Porotce ${user} hlasoval ${v.vote ? "PRO" : "PROTI"} soutěžící ${v.contestantId}`;
+      doc.text(line, 10, 10 + i * 6);
+    });
+    doc.save("votes_log.pdf");
+  };
+
+  if (usersLoading || votesLoading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
 
   const renderUserCard = (user: UserType, labelIcon: React.ReactNode) => (
     <Card key={user.id} className="bg-background">
       <CardContent className="p-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
-            {labelIcon}
-          </div>
+          <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">{labelIcon}</div>
           <div className="flex-1 text-center sm:text-left">
             <h3 className="font-semibold text-secondary">{user.name}</h3>
             <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-secondary/75">
@@ -166,6 +184,36 @@ export default function AdminJudges() {
       </div>
 
       <div className="max-w-4xl mx-auto space-y-8">
+
+        {!showLog && (
+          <Card>
+            <CardHeader><CardTitle>Log hlasování porotců</CardTitle></CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <p className="text-muted-foreground">Kliknutím na tlačítko níže se zobrazí kompletní log hlasování.</p>
+              <Button onClick={() => setShowLog(true)}><FileText className="w-4 h-4 mr-2" />Zobrazit log</Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {showLog && (
+          <Card className="bg-black text-green-400 font-mono max-h-[500px] overflow-y-auto">
+            <CardHeader className="flex justify-between items-center">
+              <CardTitle>Log hlasování</CardTitle>
+              <Button onClick={handleExportPDF}><FileText className="w-4 h-4 mr-2" />Export do PDF</Button>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {votes.map((v) => {
+                const user = users.find(u => u.id === v.userId)?.name || "Neznámý";
+                return (
+                  <div key={v.id}>
+                    [{new Date(v.createdAt).toLocaleString()}] Porotce {user} hlasoval {v.vote ? "PRO" : "PROTI"} soutěžící {v.contestantId}
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
+
         {[{ title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" },
           { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" }].map(({ title, data, icon, role }) => (
           <Card key={role}>
@@ -176,15 +224,21 @@ export default function AdminJudges() {
                   setIsCreateDialogOpen(false);
                   setEditingUser(null);
                   form.reset();
+                  setShowPassword(false);
                 }
               }}>
                 <DialogTrigger asChild>
-                  <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}><Plus className="w-4 h-4 mr-2" />Nový {role}</Button>
+                  <Button size="sm" onClick={() => { 
+                    setIsCreateDialogOpen(true); 
+                    setCurrentRole(role);
+                  }}>
+                    <Plus className="w-4 h-4 mr-2" />Nový {role}
+                  </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-sm">
                   <DialogHeader><DialogTitle>{editingUser ? "Upravit účet" : `Vytvořit ${title.toLowerCase()}`}</DialogTitle></DialogHeader>
                   <Form {...form}>
-                    <form onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : (data) => handleCreateUser(data, role))} className="space-y-4">
+                    <form onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : handleCreateUser)} className="space-y-4">
                       <FormField control={form.control} name="name" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Jméno a příjmení</FormLabel>
@@ -206,14 +260,25 @@ export default function AdminJudges() {
                       <FormField control={form.control} name="password" render={({ field }) => (
                         <FormItem>
                           <FormLabel>Heslo</FormLabel>
-                          <FormControl>
-                            <Input {...field} type="password" placeholder="••••••••" />
-                          </FormControl>
+                          <div className="relative">
+                            <FormControl>
+                              <Input {...field} type={showPassword ? "text" : "password"} placeholder="••••••••" />
+                            </FormControl>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="absolute right-1 top-1/2 -translate-y-1/2"
+                              onClick={() => setShowPassword(!showPassword)}
+                            >
+                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </Button>
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )} />
                       <div className="flex justify-end gap-2 pt-2">
-                        <Button type="button" variant="secondary" onClick={() => { setIsCreateDialogOpen(false); setEditingUser(null); form.reset(); }}>Zrušit</Button>
+                        <Button type="button" variant="secondary" onClick={() => { setIsCreateDialogOpen(false); setEditingUser(null); form.reset(); setShowPassword(false); }}>Zrušit</Button>
                         <Button type="submit" disabled={createUserMutation.isPending || updateUserMutation.isPending}>
                           {(createUserMutation.isPending || updateUserMutation.isPending) ? <LoadingSpinner size="sm" className="mr-2" /> : <Plus className="w-4 h-4 mr-2" />} {editingUser ? "Upravit" : "Vytvořit"}
                         </Button>
@@ -228,15 +293,6 @@ export default function AdminJudges() {
             </CardContent>
           </Card>
         ))}
-
-        <Card>
-          <CardHeader><CardTitle>Přihlašovací údaje</CardTitle></CardHeader>
-          <CardContent>
-            <div className="bg-muted p-4 rounded-lg text-sm">
-              Nově přidaní uživatelé mají výchozí heslo: <strong>heslo123</strong> <br /> Doporučujeme heslo po přihlášení změnit.
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );

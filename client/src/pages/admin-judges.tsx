@@ -17,6 +17,9 @@ import type { User as UserType, Vote, Contestant, Round } from "@shared/schema";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+// 💥 Nastavení fontu pro PDF
+const lexendFont = "/fonts/Lexend-Regular.ttf"; // cesta z /public
+
 const userSchema = z.object({
   name: z.string().min(1, "Jméno je povinné"),
   email: z.string().email("Neplatný email"),
@@ -42,9 +45,7 @@ export default function AdminJudges() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: users = [], isLoading: isUsersLoading } = useQuery<UserType[]>({
-    queryKey: ["/api/users"],
-  });
+  const { data: users = [], isLoading: isUsersLoading } = useQuery<UserType[]>({ queryKey: ["/api/users"] });
   const judges = useMemo(() => users.filter((u) => u.role === "judge"), [users]);
   const admins = useMemo(() => users.filter((u) => u.role === "admin"), [users]);
   const judgeIds = useMemo(() => judges.map((j) => j.id), [judges]);
@@ -64,9 +65,7 @@ export default function AdminJudges() {
     queryKey: ["/api/contestants/byRounds", roundIds],
     enabled: roundIds.length > 0,
     queryFn: async () => {
-      const all = await Promise.all(
-        roundIds.map((rid) => getJSON<Contestant[]>("GET", `/api/contestants/round/${rid}`))
-      );
+      const all = await Promise.all(roundIds.map((rid) => getJSON<Contestant[]>("GET", `/api/contestants/round/${rid}`)));
       return all.flat();
     },
   });
@@ -107,7 +106,9 @@ export default function AdminJudges() {
           if (!c) continue;
           const r = c.roundId ? roundsMap.get(c.roundId) : undefined;
           const roundLabel = r
-            ? (r.roundNumber != null ? `Kolo ${r.roundNumber}${r.name ? ` – ${r.name}` : ""}` : (r.name ?? "Neznámé kolo"))
+            ? r.roundNumber != null
+              ? `Kolo ${r.roundNumber}${r.name ? ` – ${r.name}` : ""}`
+              : r.name ?? "Neznámé kolo"
             : "Neznámé kolo";
           events.push({
             id: v.id,
@@ -255,14 +256,16 @@ export default function AdminJudges() {
 
   const exportPDF = () => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
-    doc.setFont("helvetica");
+    // Přidání Lexend fontu
+    doc.addFileToVFS("Lexend-Regular.ttf", fetch(lexendFont).then((r) => r.arrayBuffer()));
+    doc.addFont("Lexend-Regular.ttf", "Lexend", "normal");
+    doc.setFont("Lexend");
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const title = "Historie hlasování porotců";
     const exportedAt = `Exportováno: ${new Date().toLocaleString("cs-CZ")}`;
 
-    // Header
     doc.setFontSize(16);
     doc.setFont(undefined, "bold");
     doc.text(title, 40, 40);
@@ -283,11 +286,35 @@ export default function AdminJudges() {
       head,
       body,
       startY: 70,
-      styles: { font: "helvetica", fontSize: 9, cellPadding: 6 },
+      styles: { font: "Lexend", fontSize: 9, cellPadding: 6 },
       headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
       margin: { left: 40, right: 40 },
     });
 
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(9);
+      doc.text(`Strana ${i} / ${pageCount}`, pageWidth - 80, pageHeight - 20);
+    }
+
+    doc.save(`hlasovani_${Date.now()}.pdf`);
+  };
+
+  if (isUsersLoading || isRoundsLoading || isContestantsLoading || isVotesLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen p-4 md:p-6 bg-background">
+      {/* …UI karty pro adminy a porotce a historie hlasování… */}
+    </div>
+  );
+}
     // Footer
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {

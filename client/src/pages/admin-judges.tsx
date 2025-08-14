@@ -14,6 +14,8 @@ import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { User as UserType, Vote, Contestant, Round } from "@shared/schema";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const userSchema = z.object({
   name: z.string().min(1, "Jméno je povinné"),
@@ -43,8 +45,7 @@ export default function AdminJudges() {
 
   // --- USERS (admins + judges) ---
   const { data: users = [], isLoading: isUsersLoading } = useQuery<UserType[]>({
-    queryKey: ["/api/users"],
-    queryFn: () => getJSON<UserType[]>("GET", "/api/users"),
+    queryKey: ["/api/users"], // nechávám tvůj existující fetcher
   });
   const judges = useMemo(() => users.filter((u) => u.role === "judge"), [users]);
   const admins = useMemo(() => users.filter((u) => u.role === "admin"), [users]);
@@ -87,9 +88,9 @@ export default function AdminJudges() {
     contestantId: string;
     contestantName: string;
     roundId: string | null;
-    roundLabel: string; // např. "Kolo 2 – Finále" nebo jen číslo
+    roundLabel: string;
     vote: boolean;
-    createdAt: string | Date;
+    createdAt: string;
   };
 
   const {
@@ -98,7 +99,7 @@ export default function AdminJudges() {
     refetch: refetchVotes,
   } = useQuery<VoteEvent[]>({
     queryKey: ["/api/votes/byJudges", judgeIds, contestants.length, rounds.length],
-    enabled: judgeIds.length > 0, // začne až když máme porotce
+    enabled: judgeIds.length > 0,
     queryFn: async () => {
       const perJudge = await Promise.all(
         judgeIds.map(async (jid) => {
@@ -126,7 +127,7 @@ export default function AdminJudges() {
             roundId: c.roundId ?? null,
             roundLabel,
             vote: Boolean(v.vote),
-            createdAt: v.createdAt ?? new Date().toISOString(),
+            createdAt: (v.createdAt ? new Date(v.createdAt) : new Date()).toISOString(),
           });
         }
       }
@@ -136,7 +137,7 @@ export default function AdminJudges() {
     },
   });
 
-  // Možnosti kol ve filtru: jen ta kola, která se vyskytují v eventech (aby to bylo praktické)
+  // Možnosti kol ve filtru: jen ta kola, která se v eventech opravdu vyskytují
   const availableRoundIds = useMemo(() => {
     const set = new Set<string>();
     for (const e of voteEvents) if (e.roundId) set.add(e.roundId);
@@ -277,6 +278,49 @@ export default function AdminJudges() {
       </CardContent>
     </Card>
   );
+
+  // --- Export PDF (bere aktuální filteredEvents) ---
+  const exportPDF = () => {
+    const doc = new jsPDF({ unit: "pt" });
+    const title = "Historie hlasování porotců";
+    const exportedAt = `Exportováno: ${new Date().toLocaleString("cs-CZ")}`;
+
+    doc.setFontSize(16);
+    doc.text(title, 40, 40);
+    doc.setFontSize(10);
+    doc.text(exportedAt, 40, 58);
+
+    const head = [["Datum / čas", "Porotce", "Soutěžící", "Kolo", "Hlas"]];
+    const body = filteredEvents.map((e) => [
+      new Date(e.createdAt).toLocaleString("cs-CZ"),
+      e.judgeName,
+      e.contestantName,
+      e.roundLabel,
+      e.vote ? "Pozitivní" : "Negativní",
+    ]);
+
+    autoTable(doc, {
+      head,
+      body,
+      startY: 75,
+      styles: { fontSize: 9, cellPadding: 6, overflow: "linebreak" },
+      headStyles: { fontStyle: "bold" },
+      columnStyles: {
+        0: { cellWidth: 120 },
+        1: { cellWidth: 140 },
+        2: { cellWidth: 160 },
+        3: { cellWidth: 140 },
+        4: { cellWidth: 80 },
+      },
+      didDrawPage: (data) => {
+        const str = `${doc.getNumberOfPages()}`;
+        doc.setFontSize(9);
+        doc.text(`Strana ${str}`, doc.internal.pageSize.getWidth() - 60, doc.internal.pageSize.getHeight() - 20);
+      },
+    });
+
+    doc.save(`hlasovani_${Date.now()}.pdf`);
+  };
 
   if (isUsersLoading || isRoundsLoading || isContestantsLoading || isVotesLoading) {
     return (
@@ -435,6 +479,7 @@ export default function AdminJudges() {
           <CardHeader className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <CardTitle>Historie hlasování porotců</CardTitle>
+              <Button onClick={exportPDF} size="sm">Export PDF</Button>
             </div>
 
             {/* Filtrovací lišta */}

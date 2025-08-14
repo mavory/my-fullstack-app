@@ -1,13 +1,40 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ArrowLeft, Plus, Mail, User, Edit, Trash2, Shield, Eye, EyeOff } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  Mail,
+  User,
+  Edit,
+  Trash2,
+  Shield,
+  Eye,
+  EyeOff,
+} from "lucide-react";
 import { Link } from "wouter";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -15,36 +42,40 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { User as UserType } from "@shared/schema";
 
+/**
+ * Validace formuláře uživatele (stejné jako měl user)
+ */
 const userSchema = z.object({
   name: z.string().min(1, "Jméno je povinné"),
   email: z.string().email("Neplatný email"),
   password: z.string().min(6, "Heslo musí mít alespoň 6 znaků"),
 });
-
 type UserForm = z.infer<typeof userSchema>;
 
-/** Lokální typy pro votes/contestants (fallbacky) */
-type RawVoteFromApi = any;
-type NormalizedVote = {
+/**
+ * Typy pro hlasovací log (podle toho, co backend vrací v storage.getVotesByContestant)
+ * Předpokládám tvar: [{ id, userId, contestantId, vote, createdAt }, ...]
+ * Když voláme /api/votes/contestant/:id tak server vrátí pole hlasů pro toho soutěžícího.
+ */
+type RawVote = {
   id: string;
   userId: string;
   contestantId: string;
   vote: boolean;
-  createdAt: string; // ISO-ish string
+  createdAt: string;
 };
 
-type ContestantType = {
+type Contestant = {
   id: string;
-  name?: string;
+  name: string;
   className?: string;
   roundId?: string;
 };
 
-type VoteLogRow = NormalizedVote & {
-  userName?: string;
-  contestantName?: string;
-  contestantClass?: string;
-  createdAtFormatted?: string;
+type Round = {
+  id: string;
+  name: string;
+  roundNumber: number;
 };
 
 export default function AdminJudges() {
@@ -56,93 +87,140 @@ export default function AdminJudges() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // --------------------
-  // 1) fetch users (exists in routes.ts)
-  // --------------------
-  const { data: users = [], isLoading: isUsersLoading } = useQuery<UserType[]>({
+  // ----------------------
+  // USERS (admins + judges)
+  // ----------------------
+  const {
+    data: users = [],
+    isLoading: isLoadingUsers,
+    isError: isUsersError,
+    error: usersError,
+  } = useQuery<UserType[]>({
     queryKey: ["/api/users"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/users");
       const json = await res.json();
-      // routes.ts returns array - but keep fallback
+      // backend returns array; but be defensive:
       return Array.isArray(json) ? json : json.users ?? [];
     },
+    // users endpoint requires admin; make sure current user is admin in UI
   });
 
-  // --------------------
-  // 2) fetch visible contestants (routes.ts: /api/contestants/visible exists)
-  //    fallback: try /api/contestants if it exists
-  // --------------------
-  const { data: contestants = [], isLoading: isContestantsLoading } = useQuery<ContestantType[]>({
-    queryKey: ["/api/contestants/visible"],
+  // ----------------------
+  // ROUNDS -> to fetch contestants by round
+  // ----------------------
+  const {
+    data: rounds = [],
+    isLoading: isLoadingRounds,
+    isError: isRoundsError,
+  } = useQuery<Round[]>({
+    queryKey: ["/api/rounds"],
     queryFn: async () => {
-      // prefer visible endpoint
-      try {
-        const r = await apiRequest("GET", "/api/contestants/visible");
-        const j = await r.json();
-        return Array.isArray(j) ? j : j.contestants ?? [];
-      } catch (e) {
-        // fallback to /api/contestants if present (some setups)
-        try {
-          const r2 = await apiRequest("GET", "/api/contestants");
-          const j2 = await r2.json();
-          return Array.isArray(j2) ? j2 : j2.contestants ?? [];
-        } catch (e2) {
-          return [];
-        }
-      }
-    },
-  });
-
-  // --------------------
-  // 3) fetch votes (robust parsing)
-  // --------------------
-  const { data: votesRaw = [], isLoading: isVotesLoading } = useQuery<NormalizedVote[]>({
-    queryKey: ["/api/votes"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/api/votes");
+      const res = await apiRequest("GET", "/api/rounds");
       const json = await res.json();
-
-      // Accept multiple shapes: array, { votes: [...] }, { data: [...] }, { results: [...] }
-      const arr: RawVoteFromApi[] = Array.isArray(json)
-        ? json
-        : json.votes ?? json.data ?? json.results ?? [];
-
-      const parseBool = (v: any) => {
-        if (typeof v === "boolean") return v;
-        if (typeof v === "number") return v === 1;
-        if (typeof v === "string") {
-          const s = v.trim().toLowerCase();
-          if (s === "true" || s === "t" || s === "1") return true;
-          if (s === "false" || s === "f" || s === "0") return false;
-        }
-        return Boolean(v);
-      };
-
-      const normalize = (raw: RawVoteFromApi): NormalizedVote => {
-        // possible field names: id, userId or user_id, contestantId or contestant_id, vote (boolean or string), createdAt or created_at
-        const id = raw.id ?? raw._id ?? "";
-        const userId = raw.userId ?? raw.user_id ?? raw.user ?? "";
-        const contestantId = raw.contestantId ?? raw.contestant_id ?? raw.contestant ?? "";
-        const vote = parseBool(raw.vote ?? raw.value ?? raw.isPositive ?? raw.v);
-        const createdAtRaw = raw.createdAt ?? raw.created_at ?? raw.timestamp ?? raw.time ?? "";
-        // Make sure createdAt is ISO-ish string; postgres timestamp like "2025-08-14 12:04:20.150222" is fine for Date()
-        const createdAt = typeof createdAtRaw === "string" ? createdAtRaw : (createdAtRaw ? String(createdAtRaw) : new Date().toISOString());
-        return { id, userId, contestantId, vote, createdAt };
-      };
-
-      const normalized = arr.map(normalize);
-      return normalized;
+      return Array.isArray(json) ? json : json.rounds ?? [];
     },
-    // keep previous data while refetching
-    staleTime: 5 * 1000,
   });
 
-  // --------------------
-  // other UI logic and user mutations (copied + unchanged)
-  // --------------------
-  const judges = users.filter((user) => user.role === "judge");
-  const admins = users.filter((user) => user.role === "admin");
+  // ----------------------
+  // CONTESTANTS - fetch per round (since there's only /api/contestants/round/:roundId in routes.ts)
+  // ----------------------
+  const [contestants, setContestants] = useState<Contestant[]>([]);
+  const [isLoadingContestants, setIsLoadingContestants] = useState(false);
+  const [contestantsError, setContestantsError] = useState<any>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!rounds || rounds.length === 0) {
+        setContestants([]);
+        return;
+      }
+      setIsLoadingContestants(true);
+      setContestantsError(null);
+      try {
+        // for each round, fetch contestants
+        const fetches = rounds.map(async (r) => {
+          const res = await apiRequest("GET", `/api/contestants/round/${r.id}`);
+          const json = await res.json();
+          // defensive: api might return array or { contestants: [] }
+          return Array.isArray(json) ? json : json.contestants ?? [];
+        });
+        const nested = await Promise.all(fetches);
+        if (cancelled) return;
+        // flatten and keep roundId
+        const flat: Contestant[] = nested.flat().map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          className: c.className ?? c.class_name ?? "",
+          roundId: c.roundId ?? c.round_id ?? c.round?.id ?? undefined,
+        }));
+        setContestants(flat);
+      } catch (err) {
+        if (!cancelled) setContestantsError(err);
+      } finally {
+        if (!cancelled) setIsLoadingContestants(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rounds]);
+
+  // ----------------------
+  // VOTES - fetch per contestant
+  // ----------------------
+  const [rawVotes, setRawVotes] = useState<RawVote[]>([]);
+  const [isLoadingVotes, setIsLoadingVotes] = useState(false);
+  const [votesError, setVotesError] = useState<any>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!contestants || contestants.length === 0) {
+        setRawVotes([]);
+        return;
+      }
+      setIsLoadingVotes(true);
+      setVotesError(null);
+      try {
+        // fetch votes for each contestant (admin-only endpoint exists)
+        const fetches = contestants.map(async (c) => {
+          const res = await apiRequest("GET", `/api/votes/contestant/${c.id}`);
+          const json = await res.json();
+          // sometimes backend may return { votes: [...] }
+          const arr = Array.isArray(json) ? json : json.votes ?? [];
+          // normalize createdAt and fields
+          return arr.map((v: any) => ({
+            id: v.id,
+            userId: v.userId ?? v.user_id,
+            contestantId: v.contestantId ?? v.contestant_id ?? c.id,
+            vote: !!v.vote,
+            createdAt: v.createdAt ?? v.created_at ?? v.created,
+          })) as RawVote[];
+        });
+        const nested = await Promise.all(fetches);
+        if (cancelled) return;
+        const allVotes: RawVote[] = nested.flat();
+        // sort by createdAt descending
+        allVotes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setRawVotes(allVotes);
+      } catch (err) {
+        if (!cancelled) setVotesError(err);
+      } finally {
+        if (!cancelled) setIsLoadingVotes(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [contestants]);
+
+  // ----------------------
+  // Prepare users lists and helper functions
+  // ----------------------
+  const judges = users.filter((u) => u.role === "judge");
+  const admins = users.filter((u) => u.role === "admin");
 
   const form = useForm<UserForm>({
     resolver: zodResolver(userSchema),
@@ -228,10 +306,7 @@ export default function AdminJudges() {
     const parts = name.trim().split(" ");
     if (parts.length >= 2) {
       const surname = parts[parts.length - 1];
-      const normalized = surname
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/\p{Diacritic}/gu, "");
+      const normalized = surname.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
       return `${normalized}@husovka.cz`;
     }
     return "";
@@ -242,94 +317,36 @@ export default function AdminJudges() {
     if (email) form.setValue("email", email);
   };
 
-  // loading UI
-  if (isUsersLoading || isContestantsLoading || isVotesLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
-  // --------------------
-  // prepare votes with joined info
-  // --------------------
-  const votesWithInfo: VoteLogRow[] = (votesRaw || []).map((v) => {
+  // ----------------------
+  // Compose votesWithInfo: attach user name, contestant name, round info
+  // ----------------------
+  const votesWithInfo = rawVotes.map((v) => {
     const user = users.find((u) => u.id === v.userId);
     const contestant = contestants.find((c) => c.id === v.contestantId);
-    const createdAtFormatted = (() => {
-      try {
-        const d = new Date(v.createdAt);
-        if (isNaN(d.getTime())) return String(v.createdAt);
-        return d.toLocaleString("cs-CZ");
-      } catch {
-        return String(v.createdAt);
-      }
-    })();
+    const round = rounds.find((r) => r.id === contestant?.roundId);
     return {
       ...v,
-      userName: user?.name ?? `(${v.userId?.slice?.(0, 8) ?? "unknown"})`,
-      contestantName: contestant?.name ?? (v.contestantId ?? "unknown"),
-      contestantClass: contestant?.className ?? undefined,
-      createdAtFormatted,
+      userName: user?.name ?? "Neznámý porotce",
+      contestantName: contestant?.name ?? "Neznámý soutěžící",
+      contestantClass: contestant?.className ?? "",
+      roundName: round?.name ?? "",
+      roundNumber: round?.roundNumber ?? null,
+      createdAtFormatted: new Date(v.createdAt).toLocaleString("cs-CZ"),
     };
-  }).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  });
 
-  // render helper for user card (unchanged)
-  const renderUserCard = (user: UserType, labelIcon: React.ReactNode) => (
-    <Card key={user.id} className="bg-background">
-      <CardContent className="p-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
-            {labelIcon}
-          </div>
-          <div className="flex-1 text-center sm:text-left">
-            <h3 className="font-semibold text-secondary">{user.name}</h3>
-            <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-secondary/75">
-              <Mail className="w-4 h-4" />
-              {user.email}
-            </div>
-          </div>
-          <div className="text-center sm:text-right">
-            <div className="text-sm text-secondary/75">
-              Vytvořen:{" "}
-              {user.createdAt
-                ? new Date(user.createdAt).toLocaleDateString("cs-CZ")
-                : "Neznámo"}
-            </div>
-            <div className="text-xs text-success">Aktivní</div>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleEditUser(user)}
-            >
-              <Edit className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleDeleteUser(user.id)}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+  // Loading combined
+  const globalLoading = isLoadingUsers || isLoadingRounds || isLoadingContestants || isLoadingVotes;
 
-  // --------------------
-  // final render (kept layout as you had)
-  // --------------------
+  if (isUsersError) {
+    return <div className="p-4 text-red-600">Chyba načítání uživatelů.</div>;
+  }
+
   return (
     <div className="min-h-screen p-4 md:p-6 bg-background">
       <div className="flex items-center gap-4 mb-6">
         <Link href="/admin">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
+          <Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5" /></Button>
         </Link>
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Správa účtů</h1>
@@ -338,180 +355,148 @@ export default function AdminJudges() {
       </div>
 
       <div className="max-w-4xl mx-auto space-y-8">
-        {[{ title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" },
-          { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" }].map(
-          ({ title, data, icon, role }) => (
-            <Card key={role}>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  {icon}
-                  {title} ({data.length})
-                </CardTitle>
-                <Dialog
-                  open={isCreateDialogOpen || !!editingUser}
-                  onOpenChange={(open) => {
-                    if (!open) {
-                      setIsCreateDialogOpen(false);
-                      setEditingUser(null);
-                      setCreateRole(null);
-                      form.reset();
-                    }
-                  }}
-                >
-                  <DialogTrigger asChild>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setIsCreateDialogOpen(true);
-                        setCreateRole(role as "admin" | "judge");
-                      }}
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Nový {role}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-sm">
-                    <DialogHeader>
-                      <DialogTitle>
-                        {editingUser
-                          ? "Upravit účet"
-                          : `Vytvořit ${title.toLowerCase()}`}
-                      </DialogTitle>
-                    </DialogHeader>
-                    <Form {...form}>
-                      <form
-                        onSubmit={form.handleSubmit(
-                          editingUser ? handleUpdateUser : handleCreateUser
-                        )}
-                        className="space-y-4"
-                      >
-                        <FormField
-                          control={form.control}
-                          name="name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Jméno a příjmení</FormLabel>
-                              <FormControl>
-                                <Input
-                                  {...field}
-                                  placeholder="Jan Novák"
-                                  onChange={(e) => {
-                                    field.onChange(e);
-                                    handleNameChange(e.target.value);
-                                  }}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Email</FormLabel>
-                              <FormControl>
-                                <Input {...field} placeholder="novak@husovka.cz" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="password"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Heslo</FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <Input
-                                    {...field}
-                                    type={showPassword ? "text" : "password"}
-                                    placeholder="••••••••"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setShowPassword((prev) => !prev)
-                                    }
-                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500"
-                                  >
-                                    {showPassword ? (
-                                      <EyeOff className="w-4 h-4" />
-                                    ) : (
-                                      <Eye className="w-4 h-4" />
-                                    )}
-                                  </button>
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <div className="flex justify-end gap-2 pt-2">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() => {
-                              setIsCreateDialogOpen(false);
-                              setEditingUser(null);
-                              setCreateRole(null);
-                              form.reset();
-                            }}
-                          >
-                            Zrušit
-                          </Button>
-                          <Button
-                            type="submit"
-                            disabled={
-                              createUserMutation.isPending ||
-                              updateUserMutation.isPending
-                            }
-                          >
-                            {createUserMutation.isPending ||
-                            updateUserMutation.isPending ? (
-                              <LoadingSpinner size="sm" className="mr-2" />
-                            ) : (
-                              <Plus className="w-4 h-4 mr-2" />
-                            )}
-                            {editingUser ? "Upravit" : "Vytvořit"}
-                          </Button>
-                        </div>
-                      </form>
-                    </Form>
-                  </DialogContent>
-                </Dialog>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {data.map((user) => renderUserCard(user, icon))}
-              </CardContent>
-            </Card>
-          )
-        )}
+        {[
+          { title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" },
+          { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" }
+        ].map(({ title, data, icon, role }) => (
+          <Card key={role}>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">{icon}{title} ({data.length})</CardTitle>
+              <Dialog
+                open={isCreateDialogOpen || !!editingUser}
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setIsCreateDialogOpen(false);
+                    setEditingUser(null);
+                    setCreateRole(null);
+                    form.reset();
+                  }
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setIsCreateDialogOpen(true);
+                      setCreateRole(role as "admin" | "judge");
+                    }}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />Nový {role}
+                  </Button>
+                </DialogTrigger>
 
-        {/* Třetí box - Log hlasování */}
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>{editingUser ? "Upravit účet" : `Vytvořit ${title.toLowerCase()}`}</DialogTitle>
+                  </DialogHeader>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : handleCreateUser)} className="space-y-4">
+                      <FormField control={form.control} name="name" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Jméno a příjmení</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="Jan Novák" onChange={(e) => { field.onChange(e); handleNameChange(e.target.value); }} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+
+                      <FormField control={form.control} name="email" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="novak@husovka.cz" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+
+                      <FormField control={form.control} name="password" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Heslo</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Input
+                                {...field}
+                                type={showPassword ? "text" : "password"}
+                                placeholder="••••••••"
+                                className="pr-10" // prostor pro icon
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword((p) => !p)}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500"
+                                aria-label="Zobrazit/skrýt heslo"
+                              >
+                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button type="button" variant="secondary" onClick={() => { setIsCreateDialogOpen(false); setEditingUser(null); setCreateRole(null); form.reset(); }}>
+                          Zrušit
+                        </Button>
+                        <Button type="submit" disabled={createUserMutation.isPending || updateUserMutation.isPending}>
+                          {(createUserMutation.isPending || updateUserMutation.isPending) ? <LoadingSpinner size="sm" className="mr-2" /> : <Plus className="w-4 h-4 mr-2" />}
+                          {editingUser ? "Upravit" : "Vytvořit"}
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+
+            <CardContent className="space-y-4">
+              {data.map((user) => (
+                <div key={user.id}>
+                  {renderUserCard(user, icon)}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ))}
+
+        {/* Třetí box - místo "Přihlašovací údaje" -> Historie hlasování */}
         <Card>
           <CardHeader>
             <CardTitle>Historie hlasování</CardTitle>
           </CardHeader>
           <CardContent>
-            {votesWithInfo.length === 0 ? (
+            {globalLoading ? (
+              <div className="flex items-center justify-center py-6"><LoadingSpinner size="lg" /></div>
+            ) : votesError ? (
+              <div className="text-red-600">Chyba při načítání hlasů.</div>
+            ) : rawVotes.length === 0 ? (
               <div className="text-muted-foreground">Žádné hlasování zatím nebylo provedeno.</div>
             ) : (
-              <div className="max-h-96 overflow-y-auto space-y-1">
-                {votesWithInfo.map((v) => (
-                  <div key={v.id} className="flex justify-between p-2 border-b text-sm">
-                    <div>
-                      <strong>{v.userName}</strong> hlasoval pro <strong>{v.contestantName}</strong>
-                      {v.contestantClass ? ` (${v.contestantClass})` : null}
-                    </div>
-                    <div className={v.vote ? "text-green-600" : "text-red-600"}>
-                      {v.vote ? "✔" : "✖"} {v.createdAtFormatted}
-                    </div>
-                  </div>
-                ))}
+              <div className="max-h-96 overflow-y-auto">
+                <table className="w-full text-sm table-auto">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="px-2 py-1 text-left">Porotce</th>
+                      <th className="px-2 py-1 text-left">Kolo</th>
+                      <th className="px-2 py-1 text-left">Soutěžící</th>
+                      <th className="px-2 py-1 text-left">Hlas</th>
+                      <th className="px-2 py-1 text-left">Čas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {votesWithInfo.map((v) => (
+                      <tr key={v.id} className="border-b">
+                        <td className="px-2 py-1">{v.userName}</td>
+                        <td className="px-2 py-1">{v.roundName ? `#${v.roundNumber} - ${v.roundName}` : "-"}</td>
+                        <td className="px-2 py-1">{v.contestantName} {v.contestantClass ? `(${v.contestantClass})` : ""}</td>
+                        <td className={`px-2 py-1 font-semibold ${v.vote ? "text-green-600" : "text-red-600"}`}>{v.vote ? "✔ Ano" : "✖ Ne"}</td>
+                        <td className="px-2 py-1">{v.createdAtFormatted}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </CardContent>
@@ -521,3 +506,25 @@ export default function AdminJudges() {
     </div>
   );
 }
+
+/**
+ * Poznámky:
+ * - Tento komponent NEVYTVOŘÍ žádné nové API. Používá pouze:
+ *   - GET /api/users
+ *   - GET /api/rounds
+ *   - GET /api/contestants/round/:roundId   (pro všechny rounds)
+ *   - GET /api/votes/contestant/:contestantId  (pro každého contestant)
+ *   - POST /api/auth/register, PUT /api/users/:id, DELETE /api/users/:id (mutace uživatelů)
+ *
+ * - Důvod volby: v routes.ts máš ty přesně tyhle endpointy, takže je takto využívám
+ *   a žádný nový endpoint netvořím.
+ *
+ * - Pokud máš velké množství contestants / hlasů, tak volání GET /api/votes/contestant/:id
+ *   pro každý contestant může být pomalé. Pak doporučuju na backend doplnit jeden
+ *   endpoint (např. GET /api/votes) který by dal paginovaný seznam hlasů. Ale to už
+ *   nechávám na tobě — tady to řeším čistě frontendově přes available endpoints.
+ *
+ * - `apiRequest` předpokládám, že umí (method?, path, body?) — v kódu používám `apiRequest("GET", "/api/...")` nebo `apiRequest("POST", "/api/...", body)` tam, kde je potřeba. Pokud má tvoje utilita jiný tvar, uprav to drobně podle ní.
+ *
+ * - Ošetřil jsem varianty vráceného JSON (`[]` nebo `{ votes: [] }`, `{ contestants: [] }`), takže by to mělo být robustní.
+ */

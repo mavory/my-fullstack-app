@@ -29,49 +29,12 @@ async function getJSON<T>(method: string, url: string, body?: any): Promise<T> {
   return res.json();
 }
 
-// --- Pomocné: načti TTF font z /public/fonts/* a zaregistruj do jsPDF ---
-async function loadAndRegisterFont(doc: jsPDF) {
-  // Přidej do projektu (public/fonts):
-  // - /fonts/Roboto-Regular.ttf
-  // - /fonts/Roboto-Bold.ttf
-  // Pokud nejsou k dispozici, jede fallback na helvetica (bez záruky na diakritiku).
-  try {
-    const fetchAsBase64 = async (path: string) => {
-      const resp = await fetch(path);
-      const blob = await resp.blob();
-      const reader = new FileReader();
-      const p = new Promise<string>((resolve) => {
-        reader.onload = () => resolve((reader.result as string).split(",")[1] || "");
-      });
-      reader.readAsDataURL(blob);
-      return p;
-    };
-
-    const regularBase64 = await fetchAsBase64("/fonts/Roboto-Regular.ttf");
-    const boldBase64 = await fetchAsBase64("/fonts/Roboto-Bold.ttf");
-
-    // @ts-expect-error jsPDF VFS typy
-    doc.addFileToVFS("Roboto-Regular.ttf", regularBase64);
-    // @ts-expect-error jsPDF VFS typy
-    doc.addFileToVFS("Roboto-Bold.ttf", boldBase64);
-    // @ts-expect-error jsPDF typy
-    doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
-    // @ts-expect-error jsPDF typy
-    doc.addFont("Roboto-Bold.ttf", "Roboto", "bold");
-    doc.setFont("Roboto", "normal");
-  } catch {
-    // Fallback
-    doc.setFont("helvetica", "normal");
-  }
-}
-
 export default function AdminJudges() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
   const [createRole, setCreateRole] = useState<"admin" | "judge" | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Filtry pro box historie
   const [selectedJudgeId, setSelectedJudgeId] = useState<string>("__ALL__");
   const [selectedRoundId, setSelectedRoundId] = useState<string>("__ALL__");
   const [selectedVoteKind, setSelectedVoteKind] = useState<"__ALL__" | "positive" | "negative">("__ALL__");
@@ -79,7 +42,6 @@ export default function AdminJudges() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // --- USERS (admins + judges) ---
   const { data: users = [], isLoading: isUsersLoading } = useQuery<UserType[]>({
     queryKey: ["/api/users"],
   });
@@ -87,7 +49,6 @@ export default function AdminJudges() {
   const admins = useMemo(() => users.filter((u) => u.role === "admin"), [users]);
   const judgeIds = useMemo(() => judges.map((j) => j.id), [judges]);
 
-  // --- ROUNDS (všechny) ---
   const { data: rounds = [], isLoading: isRoundsLoading } = useQuery<Round[]>({
     queryKey: ["/api/rounds"],
     queryFn: () => getJSON<Round[]>("GET", "/api/rounds"),
@@ -99,7 +60,6 @@ export default function AdminJudges() {
     return m;
   }, [rounds]);
 
-  // --- CONTESTANTS (všichni přes rounds) ---
   const { data: contestants = [], isLoading: isContestantsLoading } = useQuery<Contestant[]>({
     queryKey: ["/api/contestants/byRounds", roundIds],
     enabled: roundIds.length > 0,
@@ -116,7 +76,6 @@ export default function AdminJudges() {
     return m;
   }, [contestants]);
 
-  // --- VOTES (skrze /api/votes/user/:id pro každého porotce) ---
   type VoteEvent = {
     id: string;
     judgeId: string;
@@ -129,11 +88,7 @@ export default function AdminJudges() {
     createdAt: string;
   };
 
-  const {
-    data: voteEvents = [],
-    isLoading: isVotesLoading,
-    refetch: refetchVotes,
-  } = useQuery<VoteEvent[]>({
+  const { data: voteEvents = [], isLoading: isVotesLoading, refetch: refetchVotes } = useQuery<VoteEvent[]>({
     queryKey: ["/api/votes/byJudges", judgeIds, contestants.length, rounds.length],
     enabled: judgeIds.length > 0,
     queryFn: async () => {
@@ -173,7 +128,6 @@ export default function AdminJudges() {
     },
   });
 
-  // Možnosti kol ve filtru: jen ta kola, která se v eventech opravdu vyskytují
   const availableRoundIds = useMemo(() => {
     const set = new Set<string>();
     for (const e of voteEvents) if (e.roundId) set.add(e.roundId);
@@ -182,23 +136,13 @@ export default function AdminJudges() {
 
   const filteredEvents = useMemo(() => {
     let list = voteEvents;
-
-    if (selectedJudgeId !== "__ALL__") {
-      list = list.filter((e) => e.judgeId === selectedJudgeId);
-    }
-
-    if (selectedRoundId !== "__ALL__") {
-      list = list.filter((e) => e.roundId === selectedRoundId);
-    }
-
-    if (selectedVoteKind !== "__ALL__") {
+    if (selectedJudgeId !== "__ALL__") list = list.filter((e) => e.judgeId === selectedJudgeId);
+    if (selectedRoundId !== "__ALL__") list = list.filter((e) => e.roundId === selectedRoundId);
+    if (selectedVoteKind !== "__ALL__")
       list = list.filter((e) => (selectedVoteKind === "positive" ? e.vote === true : e.vote === false));
-    }
-
     return list;
   }, [voteEvents, selectedJudgeId, selectedRoundId, selectedVoteKind]);
 
-  // --- Form + mutace uživatelů ---
   const form = useForm<UserForm>({
     resolver: zodResolver(userSchema),
     defaultValues: { name: "", email: "", password: "" },
@@ -215,11 +159,7 @@ export default function AdminJudges() {
       refetchVotes();
     },
     onError: (error: any) => {
-      toast({
-        title: "Chyba",
-        description: error?.message || "Nepodařilo se vytvořit účet",
-        variant: "destructive",
-      });
+      toast({ title: "Chyba", description: error?.message || "Nepodařilo se vytvořit účet", variant: "destructive" });
     },
   });
 
@@ -269,9 +209,7 @@ export default function AdminJudges() {
   };
 
   const handleDeleteUser = (id: string) => {
-    if (confirm("Opravdu chcete smazat tento účet?")) {
-      deleteUserMutation.mutate(id);
-    }
+    if (confirm("Opravdu chcete smazat tento účet?")) deleteUserMutation.mutate(id);
   };
 
   const generateEmailFromName = (name: string) => {
@@ -315,74 +253,22 @@ export default function AdminJudges() {
     </Card>
   );
 
-  // --- Export PDF (bere aktuální filteredEvents) ---
-  const exportPDF = async () => {
+  const exportPDF = () => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
-    await loadAndRegisterFont(doc); // čeština
+    doc.setFont("helvetica");
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-
-    // Header: zdroj + titulek + datum exportu
-    const sourceUrl = "https://hlasovani-v2.onrender.com/";
     const title = "Historie hlasování porotců";
     const exportedAt = `Exportováno: ${new Date().toLocaleString("cs-CZ")}`;
 
-    const drawHeader = () => {
-      doc.setFont("Roboto", "bold");
-      doc.setFontSize(12);
-      doc.text(`Data exportována z: ${sourceUrl}`, 40, 28, { baseline: "alphabetic" });
-      doc.setFont("Roboto", "bold");
-      doc.setFontSize(16);
-      doc.text(title, 40, 50);
-      doc.setFont("Roboto", "normal");
-      doc.setFontSize(10);
-      doc.text(exportedAt, 40, 66);
-    };
-
-    // Footer (číslování stránek)
-    const drawFooter = () => {
-      const pageCount = doc.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFont("Roboto", "normal");
-        doc.setFontSize(9);
-        doc.text(`Strana ${i} / ${pageCount}`, pageWidth - 80, pageHeight - 20);
-      }
-    };
-
-    // Vodoznak – jemný, diagonálně opakovaně
-    const applyWatermark = () => {
-      const watermarkText = "HUSOVKA MÁ TALENT";
-      const stepX = 220;
-      const stepY = 180;
-
-      const pageCount = doc.getNumberOfPages();
-      for (let p = 1; p <= pageCount; p++) {
-        doc.setPage(p);
-        // @ts-expect-error GState existuje v jsPDF runtime
-        const g = doc.GState({ opacity: 0.06 });
-        // @ts-expect-error setGState existuje v jsPDF runtime
-        doc.setGState(g);
-        doc.setFont("Roboto", "bold");
-        doc.setFontSize(48);
-        doc.setTextColor(0, 0, 0);
-
-        for (let y = 120; y < pageHeight; y += stepY) {
-          for (let x = 60; x < pageWidth; x += stepX) {
-            // @ts-expect-error jsPDF text options
-            doc.text(watermarkText, x, y, { angle: 35 });
-          }
-        }
-        // Reset opacity
-        // @ts-expect-error GState existuje v jsPDF runtime
-        const gNorm = doc.GState({ opacity: 1 });
-        // @ts-expect-error setGState existuje v jsPDF runtime
-        doc.setGState(gNorm);
-      }
-    };
-
-    drawHeader();
+    // Header
+    doc.setFontSize(16);
+    doc.setFont(undefined, "bold");
+    doc.text(title, 40, 40);
+    doc.setFontSize(10);
+    doc.setFont(undefined, "normal");
+    doc.text(exportedAt, 40, 58);
 
     const head = [["Datum / čas", "Porotce", "Soutěžící", "Kolo", "Hlas"]];
     const body = filteredEvents.map((e) => [
@@ -396,40 +282,19 @@ export default function AdminJudges() {
     autoTable(doc, {
       head,
       body,
-      startY: 88,
-      styles: {
-        font: "Roboto",
-        fontStyle: "normal",
-        fontSize: 9,
-        cellPadding: 6,
-        overflow: "linebreak",
-        valign: "middle",
-      },
-      headStyles: {
-        font: "Roboto",
-        fontStyle: "bold",
-        fillColor: [245, 245, 245],
-        textColor: [0, 0, 0],
-      },
-      columnStyles: {
-        0: { cellWidth: 120 },
-        1: { cellWidth: 150 },
-        2: { cellWidth: 160 },
-        3: { cellWidth: 150 },
-        4: { cellWidth: 90 },
-      },
+      startY: 70,
+      styles: { font: "helvetica", fontSize: 9, cellPadding: 6 },
+      headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
       margin: { left: 40, right: 40 },
-      didDrawPage: () => {
-        // Překresli header na každé stránce
-        drawHeader();
-      },
-      willDrawCell: (data) => {
-        // nic – jen hook pro případné budoucí zkrácení textu
-      },
     });
 
-    drawFooter();
-    applyWatermark();
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(9);
+      doc.text(`Strana ${i} / ${pageCount}`, pageWidth - 80, pageHeight - 20);
+    }
 
     doc.save(`hlasovani_${Date.now()}.pdf`);
   };
@@ -568,8 +433,8 @@ export default function AdminJudges() {
                         >
                           Zrušit
                         </Button>
-                        <Button type="submit" disabled={createUserMutation.isPending || updateUserMutation.isPending}>
-                          {createUserMutation.isPending || updateUserMutation.isPending ? (
+                        <Button type="submit" disabled={createUserMutation.isLoading || updateUserMutation.isLoading}>
+                          {createUserMutation.isLoading || updateUserMutation.isLoading ? (
                             <LoadingSpinner size="sm" className="mr-2" />
                           ) : (
                             <Plus className="w-4 h-4 mr-2" />
@@ -586,15 +451,16 @@ export default function AdminJudges() {
           </Card>
         ))}
 
-        {/* BOX: Historie hlasování porotců */}
+        {/* Historie hlasování porotců */}
         <Card>
           <CardHeader className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <CardTitle>Historie hlasování porotců</CardTitle>
-              <Button onClick={exportPDF} size="sm">Export PDF</Button>
+              <Button onClick={exportPDF} size="sm">
+                Export PDF
+              </Button>
             </div>
 
-            {/* Filtrovací lišta */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div className="flex items-center gap-2">
                 <label className="text-sm text-muted-foreground whitespace-nowrap">Porotce:</label>
@@ -623,7 +489,9 @@ export default function AdminJudges() {
                   {availableRoundIds.map((rid) => {
                     const r = roundsMap.get(rid);
                     const label = r
-                      ? (r.roundNumber != null ? `Kolo ${r.roundNumber}${r.name ? ` – ${r.name}` : ""}` : (r.name ?? rid))
+                      ? r.roundNumber != null
+                        ? `Kolo ${r.roundNumber}${r.name ? ` – ${r.name}` : ""}`
+                        : r.name ?? rid
                       : rid;
                     return (
                       <option key={rid} value={rid}>

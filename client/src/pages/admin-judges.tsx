@@ -29,6 +29,42 @@ async function getJSON<T>(method: string, url: string, body?: any): Promise<T> {
   return res.json();
 }
 
+// --- Pomocné: načti TTF font z /public/fonts/* a zaregistruj do jsPDF ---
+async function loadAndRegisterFont(doc: jsPDF) {
+  // Přidej do projektu (public/fonts):
+  // - /fonts/Roboto-Regular.ttf
+  // - /fonts/Roboto-Bold.ttf
+  // Pokud nejsou k dispozici, jede fallback na helvetica (bez záruky na diakritiku).
+  try {
+    const fetchAsBase64 = async (path: string) => {
+      const resp = await fetch(path);
+      const blob = await resp.blob();
+      const reader = new FileReader();
+      const p = new Promise<string>((resolve) => {
+        reader.onload = () => resolve((reader.result as string).split(",")[1] || "");
+      });
+      reader.readAsDataURL(blob);
+      return p;
+    };
+
+    const regularBase64 = await fetchAsBase64("/fonts/Roboto-Regular.ttf");
+    const boldBase64 = await fetchAsBase64("/fonts/Roboto-Bold.ttf");
+
+    // @ts-expect-error jsPDF VFS typy
+    doc.addFileToVFS("Roboto-Regular.ttf", regularBase64);
+    // @ts-expect-error jsPDF VFS typy
+    doc.addFileToVFS("Roboto-Bold.ttf", boldBase64);
+    // @ts-expect-error jsPDF typy
+    doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
+    // @ts-expect-error jsPDF typy
+    doc.addFont("Roboto-Bold.ttf", "Roboto", "bold");
+    doc.setFont("Roboto", "normal");
+  } catch {
+    // Fallback
+    doc.setFont("helvetica", "normal");
+  }
+}
+
 export default function AdminJudges() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
@@ -45,7 +81,7 @@ export default function AdminJudges() {
 
   // --- USERS (admins + judges) ---
   const { data: users = [], isLoading: isUsersLoading } = useQuery<UserType[]>({
-    queryKey: ["/api/users"], // nechávám tvůj existující fetcher
+    queryKey: ["/api/users"],
   });
   const judges = useMemo(() => users.filter((u) => u.role === "judge"), [users]);
   const admins = useMemo(() => users.filter((u) => u.role === "admin"), [users]);
@@ -280,15 +316,73 @@ export default function AdminJudges() {
   );
 
   // --- Export PDF (bere aktuální filteredEvents) ---
-  const exportPDF = () => {
-    const doc = new jsPDF({ unit: "pt" });
+  const exportPDF = async () => {
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    await loadAndRegisterFont(doc); // čeština
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // Header: zdroj + titulek + datum exportu
+    const sourceUrl = "https://hlasovani-v2.onrender.com/";
     const title = "Historie hlasování porotců";
     const exportedAt = `Exportováno: ${new Date().toLocaleString("cs-CZ")}`;
 
-    doc.setFontSize(16);
-    doc.text(title, 40, 40);
-    doc.setFontSize(10);
-    doc.text(exportedAt, 40, 58);
+    const drawHeader = () => {
+      doc.setFont("Roboto", "bold");
+      doc.setFontSize(12);
+      doc.text(`Data exportována z: ${sourceUrl}`, 40, 28, { baseline: "alphabetic" });
+      doc.setFont("Roboto", "bold");
+      doc.setFontSize(16);
+      doc.text(title, 40, 50);
+      doc.setFont("Roboto", "normal");
+      doc.setFontSize(10);
+      doc.text(exportedAt, 40, 66);
+    };
+
+    // Footer (číslování stránek)
+    const drawFooter = () => {
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFont("Roboto", "normal");
+        doc.setFontSize(9);
+        doc.text(`Strana ${i} / ${pageCount}`, pageWidth - 80, pageHeight - 20);
+      }
+    };
+
+    // Vodoznak – jemný, diagonálně opakovaně
+    const applyWatermark = () => {
+      const watermarkText = "HUSOVKA MÁ TALENT";
+      const stepX = 220;
+      const stepY = 180;
+
+      const pageCount = doc.getNumberOfPages();
+      for (let p = 1; p <= pageCount; p++) {
+        doc.setPage(p);
+        // @ts-expect-error GState existuje v jsPDF runtime
+        const g = doc.GState({ opacity: 0.06 });
+        // @ts-expect-error setGState existuje v jsPDF runtime
+        doc.setGState(g);
+        doc.setFont("Roboto", "bold");
+        doc.setFontSize(48);
+        doc.setTextColor(0, 0, 0);
+
+        for (let y = 120; y < pageHeight; y += stepY) {
+          for (let x = 60; x < pageWidth; x += stepX) {
+            // @ts-expect-error jsPDF text options
+            doc.text(watermarkText, x, y, { angle: 35 });
+          }
+        }
+        // Reset opacity
+        // @ts-expect-error GState existuje v jsPDF runtime
+        const gNorm = doc.GState({ opacity: 1 });
+        // @ts-expect-error setGState existuje v jsPDF runtime
+        doc.setGState(gNorm);
+      }
+    };
+
+    drawHeader();
 
     const head = [["Datum / čas", "Porotce", "Soutěžící", "Kolo", "Hlas"]];
     const body = filteredEvents.map((e) => [
@@ -302,22 +396,40 @@ export default function AdminJudges() {
     autoTable(doc, {
       head,
       body,
-      startY: 75,
-      styles: { fontSize: 9, cellPadding: 6, overflow: "linebreak" },
-      headStyles: { fontStyle: "bold" },
+      startY: 88,
+      styles: {
+        font: "Roboto",
+        fontStyle: "normal",
+        fontSize: 9,
+        cellPadding: 6,
+        overflow: "linebreak",
+        valign: "middle",
+      },
+      headStyles: {
+        font: "Roboto",
+        fontStyle: "bold",
+        fillColor: [245, 245, 245],
+        textColor: [0, 0, 0],
+      },
       columnStyles: {
         0: { cellWidth: 120 },
-        1: { cellWidth: 140 },
+        1: { cellWidth: 150 },
         2: { cellWidth: 160 },
-        3: { cellWidth: 140 },
-        4: { cellWidth: 80 },
+        3: { cellWidth: 150 },
+        4: { cellWidth: 90 },
       },
-      didDrawPage: (data) => {
-        const str = `${doc.getNumberOfPages()}`;
-        doc.setFontSize(9);
-        doc.text(`Strana ${str}`, doc.internal.pageSize.getWidth() - 60, doc.internal.pageSize.getHeight() - 20);
+      margin: { left: 40, right: 40 },
+      didDrawPage: () => {
+        // Překresli header na každé stránce
+        drawHeader();
+      },
+      willDrawCell: (data) => {
+        // nic – jen hook pro případné budoucí zkrácení textu
       },
     });
+
+    drawFooter();
+    applyWatermark();
 
     doc.save(`hlasovani_${Date.now()}.pdf`);
   };

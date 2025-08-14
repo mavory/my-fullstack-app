@@ -35,7 +35,6 @@ export default function AdminJudges() {
   const [createRole, setCreateRole] = useState<"admin" | "judge" | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Filtry pro box historie
   const [selectedJudgeId, setSelectedJudgeId] = useState<string>("__ALL__");
   const [selectedRoundId, setSelectedRoundId] = useState<string>("__ALL__");
   const [selectedVoteKind, setSelectedVoteKind] = useState<"__ALL__" | "positive" | "negative">("__ALL__");
@@ -43,15 +42,15 @@ export default function AdminJudges() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // --- USERS (admins + judges) ---
+  // --- USERS ---
   const { data: users = [], isLoading: isUsersLoading } = useQuery<UserType[]>({
-    queryKey: ["/api/users"],
+    queryKey: ["/api/users"], 
   });
   const judges = useMemo(() => users.filter((u) => u.role === "judge"), [users]);
   const admins = useMemo(() => users.filter((u) => u.role === "admin"), [users]);
   const judgeIds = useMemo(() => judges.map((j) => j.id), [judges]);
 
-  // --- ROUNDS (všechny) ---
+  // --- ROUNDS ---
   const { data: rounds = [], isLoading: isRoundsLoading } = useQuery<Round[]>({
     queryKey: ["/api/rounds"],
     queryFn: () => getJSON<Round[]>("GET", "/api/rounds"),
@@ -63,7 +62,7 @@ export default function AdminJudges() {
     return m;
   }, [rounds]);
 
-  // --- CONTESTANTS (všichni přes rounds) ---
+  // --- CONTESTANTS ---
   const { data: contestants = [], isLoading: isContestantsLoading } = useQuery<Contestant[]>({
     queryKey: ["/api/contestants/byRounds", roundIds],
     enabled: roundIds.length > 0,
@@ -80,7 +79,7 @@ export default function AdminJudges() {
     return m;
   }, [contestants]);
 
-  // --- VOTES (skrze /api/votes/user/:id pro každého porotce) ---
+  // --- VOTES ---
   type VoteEvent = {
     id: string;
     judgeId: string;
@@ -93,11 +92,7 @@ export default function AdminJudges() {
     createdAt: string;
   };
 
-  const {
-    data: voteEvents = [],
-    isLoading: isVotesLoading,
-    refetch: refetchVotes,
-  } = useQuery<VoteEvent[]>({
+  const { data: voteEvents = [], refetch: refetchVotes } = useQuery<VoteEvent[]>({
     queryKey: ["/api/votes/byJudges", judgeIds, contestants.length, rounds.length],
     enabled: judgeIds.length > 0,
     queryFn: async () => {
@@ -137,24 +132,15 @@ export default function AdminJudges() {
     },
   });
 
-  const availableRoundIds = useMemo(() => {
-    const set = new Set<string>();
-    for (const e of voteEvents) if (e.roundId) set.add(e.roundId);
-    return Array.from(set);
-  }, [voteEvents]);
-
   const filteredEvents = useMemo(() => {
     let list = voteEvents;
-
     if (selectedJudgeId !== "__ALL__") list = list.filter((e) => e.judgeId === selectedJudgeId);
     if (selectedRoundId !== "__ALL__") list = list.filter((e) => e.roundId === selectedRoundId);
     if (selectedVoteKind !== "__ALL__")
       list = list.filter((e) => (selectedVoteKind === "positive" ? e.vote === true : e.vote === false));
-
     return list;
   }, [voteEvents, selectedJudgeId, selectedRoundId, selectedVoteKind]);
 
-  // --- Form + mutace uživatelů ---
   const form = useForm<UserForm>({
     resolver: zodResolver(userSchema),
     defaultValues: { name: "", email: "", password: "" },
@@ -170,9 +156,6 @@ export default function AdminJudges() {
       toast({ title: "Uživatel vytvořen", description: "Účet byl přidán." });
       refetchVotes();
     },
-    onError: (error: any) => {
-      toast({ title: "Chyba", description: error?.message || "Nepodařilo se vytvořit účet", variant: "destructive" });
-    },
   });
 
   const updateUserMutation = useMutation({
@@ -185,7 +168,6 @@ export default function AdminJudges() {
       toast({ title: "Uživatel upraven", description: "Údaje byly upraveny." });
       refetchVotes();
     },
-    onError: () => toast({ title: "Chyba", description: "Nepodařilo se upravit účet", variant: "destructive" }),
   });
 
   const deleteUserMutation = useMutation({
@@ -195,67 +177,29 @@ export default function AdminJudges() {
       toast({ title: "Účet smazán", description: "Uživatel byl odebrán." });
       refetchVotes();
     },
-    onError: () => toast({ title: "Chyba", description: "Nepodařilo se smazat účet", variant: "destructive" }),
   });
 
   const handleCreateUser = (data: UserForm) => {
     if (!createRole) return;
     createUserMutation.mutate({ ...data, role: createRole });
   };
+
   const handleEditUser = (user: UserType) => {
     setEditingUser(user);
     setShowPassword(false);
     form.reset({ name: user.name, email: user.email, password: "" });
   };
+
   const handleUpdateUser = (data: UserForm) => {
     if (editingUser) {
       const updateData = data.password ? data : { ...data, password: undefined };
       updateUserMutation.mutate({ id: editingUser.id, data: updateData });
     }
   };
+
   const handleDeleteUser = (id: string) => {
     if (confirm("Opravdu chcete smazat tento účet?")) deleteUserMutation.mutate(id);
   };
-  const generateEmailFromName = (name: string) => {
-    const parts = name.trim().split(" ");
-    if (parts.length >= 2) {
-      const surname = parts[parts.length - 1];
-      const normalized = surname.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
-      return `${normalized}@husovka.cz`;
-    }
-    return "";
-  };
-
-  const renderUserCard = (user: UserType, labelIcon: React.ReactNode) => (
-    <Card key={user.id} className="bg-background">
-      <CardContent className="p-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">{labelIcon}</div>
-          <div className="flex-1 text-center sm:text-left">
-            <h3 className="font-semibold text-secondary">{user.name}</h3>
-            <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-secondary/75">
-              <Mail className="w-4 h-4" />
-              {user.email}
-            </div>
-          </div>
-          <div className="text-center sm:text-right">
-            <div className="text-sm text-secondary/75">
-              Vytvořen: {user.createdAt ? new Date(user.createdAt).toLocaleDateString("cs-CZ") : "Neznámo"}
-            </div>
-            <div className="text-xs text-success">Aktivní</div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
-              <Edit className="w-4 h-4" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user.id)}>
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
 
   const exportPDF = () => {
     const doc = new jsPDF({ unit: "pt" });
@@ -267,7 +211,12 @@ export default function AdminJudges() {
 
     doc.setTextColor(150);
     doc.setFontSize(50);
-    doc.text("HUSOVKA MÁ TALENT", doc.internal.pageSize.getWidth()/2, doc.internal.pageSize.getHeight()/2, { align: "center", angle: 45 });
+    doc.text(
+      "HUSOVKA MÁ TALENT",
+      doc.internal.pageSize.getWidth() / 2,
+      doc.internal.pageSize.getHeight() / 2,
+      { align: "center", angle: 45 }
+    );
     doc.setTextColor(0);
 
     const head = [["Datum / čas", "Porotce", "Soutěžící", "Kolo", "Hlas"]];
@@ -285,7 +234,13 @@ export default function AdminJudges() {
       startY: 100,
       styles: { fontSize: 9, cellPadding: 6, overflow: "linebreak" },
       headStyles: { fontStyle: "bold" },
-      columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 140 }, 2: { cellWidth: 160 }, 3: { cellWidth: 140 }, 4: { cellWidth: 80 } },
+      columnStyles: {
+        0: { cellWidth: 120 },
+        1: { cellWidth: 140 },
+        2: { cellWidth: 160 },
+        3: { cellWidth: 140 },
+        4: { cellWidth: 80 },
+      },
       didDrawPage: (data) => {
         const str = `${doc.getNumberOfPages()}`;
         doc.setFontSize(9);
@@ -296,97 +251,51 @@ export default function AdminJudges() {
     doc.save(`hlasovani_${Date.now()}.pdf`);
   };
 
-  if (isUsersLoading || isRoundsLoading || isContestantsLoading || isVotesLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen p-4 md:p-6 bg-background">
-      <div className="flex items-center gap-4 mb-6">
-        <Link href="/admin">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="w-5 h-5" />
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold">Správa porotců</h2>
+        <div className="flex gap-2">
+          <Button onClick={() => { setCreateRole("judge"); setIsCreateDialogOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1" /> Přidat porotce
           </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Správa účtů</h1>
-          <p className="text-muted-foreground">Porotci a administrátoři</p>
+          <Button onClick={exportPDF}>Export PDF</Button>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto space-y-8">
-        {[{ title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" }, { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" }].map(({ title, data, icon, role }) => (
-          <Card key={role}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">{icon}{title} ({data.length})</CardTitle>
-              <Dialog
-                open={isCreateDialogOpen || !!editingUser}
-                onOpenChange={(open) => {
-                  if (!open) {
-                    setIsCreateDialogOpen(false);
-                    setEditingUser(null);
-                    setCreateRole(null);
-                    form.reset();
-                  }
-                }}
-              >
-                <DialogTrigger asChild>
-                  <Button size="sm" onClick={() => { setIsCreateDialogOpen(true); setCreateRole(role as "admin" | "judge"); }}>
-                    <Plus className="w-4 h-4 mr-2" />Nový {role}
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-sm">
-                  <DialogHeader><DialogTitle>{editingUser ? "Upravit účet" : `Vytvořit ${title.toLowerCase()}`}</DialogTitle></DialogHeader>
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : handleCreateUser)} className="space-y-4">
-                      <FormField control={form.control} name="name" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Jméno a příjmení</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="Jan Novák" onChange={(e) => { field.onChange(e); const email = generateEmailFromName(e.target.value); if (email) form.setValue("email", email); }} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="email" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email</FormLabel>
-                          <FormControl><Input {...field} placeholder="novak@husovka.cz" /></FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <FormField control={form.control} name="password" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Heslo</FormLabel>
-                          <FormControl>
-                            <div className="relative">
-                              <Input {...field} type={showPassword ? "text" : "password"} placeholder="••••••••" />
-                              <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="absolute right-2 top-2 text-gray-500">
-                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </button>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-                      <Button type="submit" className="w-full">{editingUser ? "Upravit" : "Vytvořit"}</Button>
-                    </form>
-                  </Form>
-                </DialogContent>
-              </Dialog>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              {data.map((u) => renderUserCard(u, icon))}
-            </CardContent>
-          </Card>
-        ))}
-
-        <Button onClick={exportPDF} className="w-full md:w-1/3 mt-6">Exportovat historii do PDF</Button>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Historie hlasování</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {filteredEvents.length === 0 ? (
+            <div>Žádné hlasování zatím nebylo provedeno.</div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr>
+                  <th className="border p-2">Datum / čas</th>
+                  <th className="border p-2">Porotce</th>
+                  <th className="border p-2">Soutěžící</th>
+                  <th className="border p-2">Kolo</th>
+                  <th className="border p-2">Hlas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredEvents.map((e) => (
+                  <tr key={e.id}>
+                    <td className="border p-2">{new Date(e.createdAt).toLocaleString("cs-CZ")}</td>
+                    <td className="border p-2">{e.judgeName}</td>
+                    <td className="border p-2">{e.contestantName}</td>
+                    <td className="border p-2">{e.roundLabel}</td>
+                    <td className="border p-2">{e.vote ? "Pozitivní" : "Negativní"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -13,7 +13,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { User as UserType } from "@shared/schema";
+import type { User as UserType, Contestant, Round, Vote } from "@shared/schema";
 
 const userSchema = z.object({
   name: z.string().min(1, "Jméno je povinné"),
@@ -32,9 +32,11 @@ export default function AdminJudges() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: users = [], isLoading } = useQuery<UserType[]>({
-    queryKey: ["/api/users"],
-  });
+  // Načtení všech dat
+  const { data: users = [], isLoading: isLoadingUsers } = useQuery<UserType[]>(["/api/users"]);
+  const { data: contestants = [], isLoading: isLoadingContestants } = useQuery<Contestant[]>(["/api/contestants"]);
+  const { data: rounds = [], isLoading: isLoadingRounds } = useQuery<Round[]>(["/api/rounds"]);
+  const { data: votes = [], isLoading: isLoadingVotes } = useQuery<Vote[]>(["/api/votes"]);
 
   const judges = users.filter((user) => user.role === "judge");
   const admins = users.filter((user) => user.role === "admin");
@@ -44,6 +46,7 @@ export default function AdminJudges() {
     defaultValues: { name: "", email: "", password: "" },
   });
 
+  // Mutace pro uživatele (create, update, delete)
   const createUserMutation = useMutation({
     mutationFn: async (data: UserForm & { role: string }) => {
       const response = await apiRequest("POST", "/api/auth/register", data);
@@ -137,7 +140,7 @@ export default function AdminJudges() {
     if (email) form.setValue("email", email);
   };
 
-  if (isLoading)
+  if (isLoadingUsers || isLoadingContestants || isLoadingRounds || isLoadingVotes)
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" />
@@ -188,6 +191,21 @@ export default function AdminJudges() {
     </Card>
   );
 
+  // Připravíme hlasovací log
+  const votesWithInfo = votes.map(vote => {
+    const user = users.find(u => u.id === vote.userId);
+    const contestant = contestants.find(c => c.id === vote.contestantId);
+    const round = rounds.find(r => r.id === contestant?.roundId);
+    return {
+      ...vote,
+      userName: user?.name,
+      contestantName: contestant?.name,
+      roundName: round?.name,
+      roundNumber: round?.roundNumber,
+      createdAtFormatted: new Date(vote.createdAt).toLocaleString("cs-CZ")
+    };
+  }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
   return (
     <div className="min-h-screen p-4 md:p-6 bg-background">
       <div className="flex items-center gap-4 mb-6">
@@ -203,8 +221,7 @@ export default function AdminJudges() {
       </div>
 
       <div className="max-w-4xl mx-auto space-y-8">
-        {[
-          { title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" },
+        {[{ title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" },
           { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" }
         ].map(({ title, data, icon, role }) => (
           <Card key={role}>
@@ -239,9 +256,7 @@ export default function AdminJudges() {
                 <DialogContent className="max-w-sm">
                   <DialogHeader>
                     <DialogTitle>
-                      {editingUser
-                        ? "Upravit účet"
-                        : `Vytvořit ${title.toLowerCase()}`}
+                      {editingUser ? "Upravit účet" : `Vytvořit ${title.toLowerCase()}`}
                     </DialogTitle>
                   </DialogHeader>
                   <Form {...form}>
@@ -356,15 +371,35 @@ export default function AdminJudges() {
           </Card>
         ))}
 
+        {/* Tady bude log hlasování */}
         <Card>
           <CardHeader>
-            <CardTitle>Přihlašovací údaje</CardTitle>
+            <CardTitle>Historie hlasování</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="bg-muted p-4 rounded-lg text-sm">
-              Nově přidaní uživatelé mají výchozí heslo:{" "}
-              <strong>heslo123</strong> <br /> Doporučujeme heslo po přihlášení
-              změnit.
+            <div className="overflow-x-auto max-h-96">
+              <table className="w-full table-auto border-collapse text-sm">
+                <thead>
+                  <tr className="bg-muted text-left">
+                    <th className="px-2 py-1 border">Porotce</th>
+                    <th className="px-2 py-1 border">Kolo</th>
+                    <th className="px-2 py-1 border">Soutěžící</th>
+                    <th className="px-2 py-1 border">Hlas</th>
+                    <th className="px-2 py-1 border">Datum a čas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {votesWithInfo.map(v => (
+                    <tr key={v.id} className="border-b">
+                      <td className="px-2 py-1 border">{v.userName}</td>
+                      <td className="px-2 py-1 border">{v.roundName} ({v.roundNumber})</td>
+                      <td className="px-2 py-1 border">{v.contestantName}</td>
+                      <td className="px-2 py-1 border">{v.vote ? "👍" : "👎"}</td>
+                      <td className="px-2 py-1 border">{v.createdAtFormatted}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>

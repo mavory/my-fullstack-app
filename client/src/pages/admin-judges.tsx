@@ -47,18 +47,18 @@ async function loadAndRegisterFont(doc: jsPDF) {
       return p;
     };
 
-    const regularBase64 = await fetchAsBase64("/fonts/Lexend-Regular.ttf");
-    const boldBase64 = await fetchAsBase64("/fonts/Lexend-Bold.ttf");
+    const regularBase64 = await fetchAsBase64("/fonts/Roboto-Regular.ttf");
+    const boldBase64 = await fetchAsBase64("/fonts/Roboto-Bold.ttf");
 
     // @ts-expect-error jsPDF VFS typy
-    doc.addFileToVFS("Lexend-Regular.ttf", regularBase64);
+    doc.addFileToVFS("Roboto-Regular.ttf", regularBase64);
     // @ts-expect-error jsPDF VFS typy
-    doc.addFileToVFS("Lexend-Bold.ttf", boldBase64);
-    // @ts-expect-error jsPDF VFS typy
-    doc.addFont("Lexend-Regular.ttf", "Lexend", "normal");
-    // @ts-expect-error jsPDF VFS typy
-    doc.addFont("Lexend-Bold.ttf", "Lexend", "bold");
-    doc.setFont("Lexend", "normal");
+    doc.addFileToVFS("Roboto-Bold.ttf", boldBase64);
+    // @ts-expect-error jsPDF typy
+    doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
+    // @ts-expect-error jsPDF typy
+    doc.addFont("Roboto-Bold.ttf", "Roboto", "bold");
+    doc.setFont("Roboto", "normal");
   } catch {
     // Fallback
     doc.setFont("helvetica", "normal");
@@ -325,17 +325,17 @@ export default function AdminJudges() {
 
     // Header: zdroj + titulek + datum exportu
     const sourceUrl = "https://hlasovani-v2.onrender.com/";
-    const title = "Historie hlasování";
+    const title = "Historie hlasování porotců";
     const exportedAt = `Exportováno: ${new Date().toLocaleString("cs-CZ")}`;
 
     const drawHeader = () => {
-      doc.setFont("Lexend", "bold");
+      doc.setFont("Roboto", "bold");
       doc.setFontSize(12);
       doc.text(`Data exportována z: ${sourceUrl}`, 40, 28, { baseline: "alphabetic" });
-      doc.setFont("Lexend", "bold");
+      doc.setFont("Roboto", "bold");
       doc.setFontSize(16);
       doc.text(title, 40, 50);
-      doc.setFont("Lexend", "normal");
+      doc.setFont("Roboto", "normal");
       doc.setFontSize(10);
       doc.text(exportedAt, 40, 66);
     };
@@ -345,7 +345,7 @@ export default function AdminJudges() {
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
-        doc.setFont("Lexend", "normal");
+        doc.setFont("Roboto", "normal");
         doc.setFontSize(9);
         doc.text(`Strana ${i} / ${pageCount}`, pageWidth - 80, pageHeight - 20);
       }
@@ -364,7 +364,7 @@ export default function AdminJudges() {
         const g = doc.GState({ opacity: 0.06 });
         // @ts-expect-error setGState existuje v jsPDF runtime
         doc.setGState(g);
-        doc.setFont("Lexend", "bold");
+        doc.setFont("Roboto", "bold");
         doc.setFontSize(48);
         doc.setTextColor(0, 0, 0);
 
@@ -398,7 +398,7 @@ export default function AdminJudges() {
       body,
       startY: 88,
       styles: {
-        font: "Lexend",
+        font: "Roboto",
         fontStyle: "normal",
         fontSize: 9,
         cellPadding: 6,
@@ -406,7 +406,7 @@ export default function AdminJudges() {
         valign: "middle",
       },
       headStyles: {
-        font: "Lexend",
+        font: "Roboto",
         fontStyle: "bold",
         fillColor: [245, 245, 245],
         textColor: [0, 0, 0],

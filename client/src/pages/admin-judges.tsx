@@ -23,12 +23,28 @@ const userSchema = z.object({
 
 type UserForm = z.infer<typeof userSchema>;
 
-type VoteLog = {
+/** Lokální typy pro votes/contestants (fallbacky) */
+type RawVoteFromApi = any;
+type NormalizedVote = {
   id: string;
+  userId: string;
+  contestantId: string;
   vote: boolean;
-  createdAt: string;
-  user: { id: string; name: string };
-  contestant: { id: string; name: string; className: string };
+  createdAt: string; // ISO-ish string
+};
+
+type ContestantType = {
+  id: string;
+  name?: string;
+  className?: string;
+  roundId?: string;
+};
+
+type VoteLogRow = NormalizedVote & {
+  userName?: string;
+  contestantName?: string;
+  contestantClass?: string;
+  createdAtFormatted?: string;
 };
 
 export default function AdminJudges() {
@@ -40,24 +56,91 @@ export default function AdminJudges() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch users
-  const { data: users = [], isLoading } = useQuery<UserType[]>({
+  // --------------------
+  // 1) fetch users (exists in routes.ts)
+  // --------------------
+  const { data: users = [], isLoading: isUsersLoading } = useQuery<UserType[]>({
     queryKey: ["/api/users"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/users");
-      return res.json();
+      const json = await res.json();
+      // routes.ts returns array - but keep fallback
+      return Array.isArray(json) ? json : json.users ?? [];
     },
   });
 
-  // Fetch votes
-  const { data: votes = [] } = useQuery<VoteLog[]>({
+  // --------------------
+  // 2) fetch visible contestants (routes.ts: /api/contestants/visible exists)
+  //    fallback: try /api/contestants if it exists
+  // --------------------
+  const { data: contestants = [], isLoading: isContestantsLoading } = useQuery<ContestantType[]>({
+    queryKey: ["/api/contestants/visible"],
+    queryFn: async () => {
+      // prefer visible endpoint
+      try {
+        const r = await apiRequest("GET", "/api/contestants/visible");
+        const j = await r.json();
+        return Array.isArray(j) ? j : j.contestants ?? [];
+      } catch (e) {
+        // fallback to /api/contestants if present (some setups)
+        try {
+          const r2 = await apiRequest("GET", "/api/contestants");
+          const j2 = await r2.json();
+          return Array.isArray(j2) ? j2 : j2.contestants ?? [];
+        } catch (e2) {
+          return [];
+        }
+      }
+    },
+  });
+
+  // --------------------
+  // 3) fetch votes (robust parsing)
+  // --------------------
+  const { data: votesRaw = [], isLoading: isVotesLoading } = useQuery<NormalizedVote[]>({
     queryKey: ["/api/votes"],
     queryFn: async () => {
       const res = await apiRequest("GET", "/api/votes");
-      return res.json();
+      const json = await res.json();
+
+      // Accept multiple shapes: array, { votes: [...] }, { data: [...] }, { results: [...] }
+      const arr: RawVoteFromApi[] = Array.isArray(json)
+        ? json
+        : json.votes ?? json.data ?? json.results ?? [];
+
+      const parseBool = (v: any) => {
+        if (typeof v === "boolean") return v;
+        if (typeof v === "number") return v === 1;
+        if (typeof v === "string") {
+          const s = v.trim().toLowerCase();
+          if (s === "true" || s === "t" || s === "1") return true;
+          if (s === "false" || s === "f" || s === "0") return false;
+        }
+        return Boolean(v);
+      };
+
+      const normalize = (raw: RawVoteFromApi): NormalizedVote => {
+        // possible field names: id, userId or user_id, contestantId or contestant_id, vote (boolean or string), createdAt or created_at
+        const id = raw.id ?? raw._id ?? "";
+        const userId = raw.userId ?? raw.user_id ?? raw.user ?? "";
+        const contestantId = raw.contestantId ?? raw.contestant_id ?? raw.contestant ?? "";
+        const vote = parseBool(raw.vote ?? raw.value ?? raw.isPositive ?? raw.v);
+        const createdAtRaw = raw.createdAt ?? raw.created_at ?? raw.timestamp ?? raw.time ?? "";
+        // Make sure createdAt is ISO-ish string; postgres timestamp like "2025-08-14 12:04:20.150222" is fine for Date()
+        const createdAt = typeof createdAtRaw === "string" ? createdAtRaw : (createdAtRaw ? String(createdAtRaw) : new Date().toISOString());
+        return { id, userId, contestantId, vote, createdAt };
+      };
+
+      const normalized = arr.map(normalize);
+      return normalized;
     },
+    // keep previous data while refetching
+    staleTime: 5 * 1000,
   });
 
+  // --------------------
+  // other UI logic and user mutations (copied + unchanged)
+  // --------------------
   const judges = users.filter((user) => user.role === "judge");
   const admins = users.filter((user) => user.role === "admin");
 
@@ -81,7 +164,7 @@ export default function AdminJudges() {
     onError: (error: any) => {
       toast({
         title: "Chyba",
-        description: error.message || "Nepodařilo se vytvořit účet",
+        description: error?.message || "Nepodařilo se vytvořit účet",
         variant: "destructive",
       });
     },
@@ -98,8 +181,8 @@ export default function AdminJudges() {
       form.reset();
       toast({ title: "Uživatel upraven", description: "Údaje byly upraveny." });
     },
-    onError: () => {
-      toast({ title: "Chyba", description: "Nepodařilo se upravit účet", variant: "destructive" });
+    onError: (error: any) => {
+      toast({ title: "Chyba", description: error?.message || "Nepodařilo se upravit účet", variant: "destructive" });
     },
   });
 
@@ -112,8 +195,8 @@ export default function AdminJudges() {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       toast({ title: "Účet smazán", description: "Uživatel byl odebrán." });
     },
-    onError: () => {
-      toast({ title: "Chyba", description: "Nepodařilo se smazat účet", variant: "destructive" });
+    onError: (error: any) => {
+      toast({ title: "Chyba", description: error?.message || "Nepodařilo se smazat účet", variant: "destructive" });
     },
   });
 
@@ -159,13 +242,40 @@ export default function AdminJudges() {
     if (email) form.setValue("email", email);
   };
 
-  if (isLoading)
+  // loading UI
+  if (isUsersLoading || isContestantsLoading || isVotesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" />
       </div>
     );
+  }
 
+  // --------------------
+  // prepare votes with joined info
+  // --------------------
+  const votesWithInfo: VoteLogRow[] = (votesRaw || []).map((v) => {
+    const user = users.find((u) => u.id === v.userId);
+    const contestant = contestants.find((c) => c.id === v.contestantId);
+    const createdAtFormatted = (() => {
+      try {
+        const d = new Date(v.createdAt);
+        if (isNaN(d.getTime())) return String(v.createdAt);
+        return d.toLocaleString("cs-CZ");
+      } catch {
+        return String(v.createdAt);
+      }
+    })();
+    return {
+      ...v,
+      userName: user?.name ?? `(${v.userId?.slice?.(0, 8) ?? "unknown"})`,
+      contestantName: contestant?.name ?? (v.contestantId ?? "unknown"),
+      contestantClass: contestant?.className ?? undefined,
+      createdAtFormatted,
+    };
+  }).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  // render helper for user card (unchanged)
   const renderUserCard = (user: UserType, labelIcon: React.ReactNode) => (
     <Card key={user.id} className="bg-background">
       <CardContent className="p-4">
@@ -210,6 +320,9 @@ export default function AdminJudges() {
     </Card>
   );
 
+  // --------------------
+  // final render (kept layout as you had)
+  // --------------------
   return (
     <div className="min-h-screen p-4 md:p-6 bg-background">
       <div className="flex items-center gap-4 mb-6">
@@ -323,7 +436,7 @@ export default function AdminJudges() {
                                     onClick={() =>
                                       setShowPassword((prev) => !prev)
                                     }
-                                    className="absolute right-2 top-2 text-gray-500"
+                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500"
                                   >
                                     {showPassword ? (
                                       <EyeOff className="w-4 h-4" />
@@ -381,20 +494,21 @@ export default function AdminJudges() {
         {/* Třetí box - Log hlasování */}
         <Card>
           <CardHeader>
-            <CardTitle>Log hlasování</CardTitle>
+            <CardTitle>Historie hlasování</CardTitle>
           </CardHeader>
           <CardContent>
-            {votes.length === 0 ? (
+            {votesWithInfo.length === 0 ? (
               <div className="text-muted-foreground">Žádné hlasování zatím nebylo provedeno.</div>
             ) : (
               <div className="max-h-96 overflow-y-auto space-y-1">
-                {votes.map((v) => (
+                {votesWithInfo.map((v) => (
                   <div key={v.id} className="flex justify-between p-2 border-b text-sm">
                     <div>
-                      <strong>{v.user.name}</strong> hlasoval pro <strong>{v.contestant.name}</strong> ({v.contestant.className})
+                      <strong>{v.userName}</strong> hlasoval pro <strong>{v.contestantName}</strong>
+                      {v.contestantClass ? ` (${v.contestantClass})` : null}
                     </div>
                     <div className={v.vote ? "text-green-600" : "text-red-600"}>
-                      {v.vote ? "✔" : "✖"} {new Date(v.createdAt).toLocaleString("cs-CZ")}
+                      {v.vote ? "✔" : "✖"} {v.createdAtFormatted}
                     </div>
                   </div>
                 ))}

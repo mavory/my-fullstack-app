@@ -29,42 +29,6 @@ async function getJSON<T>(method: string, url: string, body?: any): Promise<T> {
   return res.json();
 }
 
-// --- Pomocné: načti TTF font z /public/fonts/* a zaregistruj do jsPDF ---
-async function loadAndRegisterFont(doc: jsPDF) {
-  // Přidej do projektu (public/fonts):
-  // - /fonts/Roboto-Regular.ttf
-  // - /fonts/Roboto-Bold.ttf
-  // Pokud nejsou k dispozici, jede fallback na helvetica (bez záruky na diakritiku).
-  try {
-    const fetchAsBase64 = async (path: string) => {
-      const resp = await fetch(path);
-      const blob = await resp.blob();
-      const reader = new FileReader();
-      const p = new Promise<string>((resolve) => {
-        reader.onload = () => resolve((reader.result as string).split(",")[1] || "");
-      });
-      reader.readAsDataURL(blob);
-      return p;
-    };
-
-    const regularBase64 = await fetchAsBase64("/fonts/Roboto-Regular.ttf");
-    const boldBase64 = await fetchAsBase64("/fonts/Roboto-Bold.ttf");
-
-    // @ts-expect-error jsPDF VFS typy
-    doc.addFileToVFS("Roboto-Regular.ttf", regularBase64);
-    // @ts-expect-error jsPDF VFS typy
-    doc.addFileToVFS("Roboto-Bold.ttf", boldBase64);
-    // @ts-expect-error jsPDF typy
-    doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
-    // @ts-expect-error jsPDF typy
-    doc.addFont("Roboto-Bold.ttf", "Roboto", "bold");
-    doc.setFont("Roboto", "normal");
-  } catch {
-    // Fallback
-    doc.setFont("helvetica", "normal");
-  }
-}
-
 export default function AdminJudges() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
@@ -173,7 +137,6 @@ export default function AdminJudges() {
     },
   });
 
-  // Možnosti kol ve filtru: jen ta kola, která se v eventech opravdu vyskytují
   const availableRoundIds = useMemo(() => {
     const set = new Set<string>();
     for (const e of voteEvents) if (e.roundId) set.add(e.roundId);
@@ -183,17 +146,10 @@ export default function AdminJudges() {
   const filteredEvents = useMemo(() => {
     let list = voteEvents;
 
-    if (selectedJudgeId !== "__ALL__") {
-      list = list.filter((e) => e.judgeId === selectedJudgeId);
-    }
-
-    if (selectedRoundId !== "__ALL__") {
-      list = list.filter((e) => e.roundId === selectedRoundId);
-    }
-
-    if (selectedVoteKind !== "__ALL__") {
+    if (selectedJudgeId !== "__ALL__") list = list.filter((e) => e.judgeId === selectedJudgeId);
+    if (selectedRoundId !== "__ALL__") list = list.filter((e) => e.roundId === selectedRoundId);
+    if (selectedVoteKind !== "__ALL__")
       list = list.filter((e) => (selectedVoteKind === "positive" ? e.vote === true : e.vote === false));
-    }
 
     return list;
   }, [voteEvents, selectedJudgeId, selectedRoundId, selectedVoteKind]);
@@ -215,11 +171,7 @@ export default function AdminJudges() {
       refetchVotes();
     },
     onError: (error: any) => {
-      toast({
-        title: "Chyba",
-        description: error?.message || "Nepodařilo se vytvořit účet",
-        variant: "destructive",
-      });
+      toast({ title: "Chyba", description: error?.message || "Nepodařilo se vytvořit účet", variant: "destructive" });
     },
   });
 
@@ -233,9 +185,7 @@ export default function AdminJudges() {
       toast({ title: "Uživatel upraven", description: "Údaje byly upraveny." });
       refetchVotes();
     },
-    onError: () => {
-      toast({ title: "Chyba", description: "Nepodařilo se upravit účet", variant: "destructive" });
-    },
+    onError: () => toast({ title: "Chyba", description: "Nepodařilo se upravit účet", variant: "destructive" }),
   });
 
   const deleteUserMutation = useMutation({
@@ -245,35 +195,27 @@ export default function AdminJudges() {
       toast({ title: "Účet smazán", description: "Uživatel byl odebrán." });
       refetchVotes();
     },
-    onError: () => {
-      toast({ title: "Chyba", description: "Nepodařilo se smazat účet", variant: "destructive" });
-    },
+    onError: () => toast({ title: "Chyba", description: "Nepodařilo se smazat účet", variant: "destructive" }),
   });
 
   const handleCreateUser = (data: UserForm) => {
     if (!createRole) return;
     createUserMutation.mutate({ ...data, role: createRole });
   };
-
   const handleEditUser = (user: UserType) => {
     setEditingUser(user);
     setShowPassword(false);
     form.reset({ name: user.name, email: user.email, password: "" });
   };
-
   const handleUpdateUser = (data: UserForm) => {
     if (editingUser) {
       const updateData = data.password ? data : { ...data, password: undefined };
       updateUserMutation.mutate({ id: editingUser.id, data: updateData });
     }
   };
-
   const handleDeleteUser = (id: string) => {
-    if (confirm("Opravdu chcete smazat tento účet?")) {
-      deleteUserMutation.mutate(id);
-    }
+    if (confirm("Opravdu chcete smazat tento účet?")) deleteUserMutation.mutate(id);
   };
-
   const generateEmailFromName = (name: string) => {
     const parts = name.trim().split(" ");
     if (parts.length >= 2) {
@@ -315,74 +257,18 @@ export default function AdminJudges() {
     </Card>
   );
 
-  // --- Export PDF (bere aktuální filteredEvents) ---
-  const exportPDF = async () => {
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    await loadAndRegisterFont(doc); // čeština
+  const exportPDF = () => {
+    const doc = new jsPDF({ unit: "pt" });
+    doc.setFontSize(16);
+    doc.text("Historie hlasování porotců", 40, 40);
+    doc.setFontSize(10);
+    doc.text("Stránka: https://hlasovani-v2.onrender.com", 40, 58);
+    doc.text(`Exportováno: ${new Date().toLocaleString("cs-CZ")}`, 40, 72);
 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-
-    // Header: zdroj + titulek + datum exportu
-    const sourceUrl = "https://hlasovani-v2.onrender.com/";
-    const title = "Historie hlasování porotců";
-    const exportedAt = `Exportováno: ${new Date().toLocaleString("cs-CZ")}`;
-
-    const drawHeader = () => {
-      doc.setFont("Roboto", "bold");
-      doc.setFontSize(12);
-      doc.text(`Data exportována z: ${sourceUrl}`, 40, 28, { baseline: "alphabetic" });
-      doc.setFont("Roboto", "bold");
-      doc.setFontSize(16);
-      doc.text(title, 40, 50);
-      doc.setFont("Roboto", "normal");
-      doc.setFontSize(10);
-      doc.text(exportedAt, 40, 66);
-    };
-
-    // Footer (číslování stránek)
-    const drawFooter = () => {
-      const pageCount = doc.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFont("Roboto", "normal");
-        doc.setFontSize(9);
-        doc.text(`Strana ${i} / ${pageCount}`, pageWidth - 80, pageHeight - 20);
-      }
-    };
-
-    // Vodoznak – jemný, diagonálně opakovaně
-    const applyWatermark = () => {
-      const watermarkText = "HUSOVKA MÁ TALENT";
-      const stepX = 220;
-      const stepY = 180;
-
-      const pageCount = doc.getNumberOfPages();
-      for (let p = 1; p <= pageCount; p++) {
-        doc.setPage(p);
-        // @ts-expect-error GState existuje v jsPDF runtime
-        const g = doc.GState({ opacity: 0.06 });
-        // @ts-expect-error setGState existuje v jsPDF runtime
-        doc.setGState(g);
-        doc.setFont("Roboto", "bold");
-        doc.setFontSize(48);
-        doc.setTextColor(0, 0, 0);
-
-        for (let y = 120; y < pageHeight; y += stepY) {
-          for (let x = 60; x < pageWidth; x += stepX) {
-            // @ts-expect-error jsPDF text options
-            doc.text(watermarkText, x, y, { angle: 35 });
-          }
-        }
-        // Reset opacity
-        // @ts-expect-error GState existuje v jsPDF runtime
-        const gNorm = doc.GState({ opacity: 1 });
-        // @ts-expect-error setGState existuje v jsPDF runtime
-        doc.setGState(gNorm);
-      }
-    };
-
-    drawHeader();
+    doc.setTextColor(150);
+    doc.setFontSize(50);
+    doc.text("HUSOVKA MÁ TALENT", doc.internal.pageSize.getWidth()/2, doc.internal.pageSize.getHeight()/2, { align: "center", angle: 45 });
+    doc.setTextColor(0);
 
     const head = [["Datum / čas", "Porotce", "Soutěžící", "Kolo", "Hlas"]];
     const body = filteredEvents.map((e) => [
@@ -396,40 +282,16 @@ export default function AdminJudges() {
     autoTable(doc, {
       head,
       body,
-      startY: 88,
-      styles: {
-        font: "Roboto",
-        fontStyle: "normal",
-        fontSize: 9,
-        cellPadding: 6,
-        overflow: "linebreak",
-        valign: "middle",
-      },
-      headStyles: {
-        font: "Roboto",
-        fontStyle: "bold",
-        fillColor: [245, 245, 245],
-        textColor: [0, 0, 0],
-      },
-      columnStyles: {
-        0: { cellWidth: 120 },
-        1: { cellWidth: 150 },
-        2: { cellWidth: 160 },
-        3: { cellWidth: 150 },
-        4: { cellWidth: 90 },
-      },
-      margin: { left: 40, right: 40 },
-      didDrawPage: () => {
-        // Překresli header na každé stránce
-        drawHeader();
-      },
-      willDrawCell: (data) => {
-        // nic – jen hook pro případné budoucí zkrácení textu
+      startY: 100,
+      styles: { fontSize: 9, cellPadding: 6, overflow: "linebreak" },
+      headStyles: { fontStyle: "bold" },
+      columnStyles: { 0: { cellWidth: 120 }, 1: { cellWidth: 140 }, 2: { cellWidth: 160 }, 3: { cellWidth: 140 }, 4: { cellWidth: 80 } },
+      didDrawPage: (data) => {
+        const str = `${doc.getNumberOfPages()}`;
+        doc.setFontSize(9);
+        doc.text(`Strana ${str}`, doc.internal.pageSize.getWidth() - 60, doc.internal.pageSize.getHeight() - 20);
       },
     });
-
-    drawFooter();
-    applyWatermark();
 
     doc.save(`hlasovani_${Date.now()}.pdf`);
   };
@@ -457,16 +319,10 @@ export default function AdminJudges() {
       </div>
 
       <div className="max-w-5xl mx-auto space-y-8">
-        {[
-          { title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" },
-          { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" },
-        ].map(({ title, data, icon, role }) => (
+        {[{ title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" }, { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" }].map(({ title, data, icon, role }) => (
           <Card key={role}>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                {icon}
-                {title} ({data.length})
-              </CardTitle>
+              <CardTitle className="flex items-center gap-2">{icon}{title} ({data.length})</CardTitle>
               <Dialog
                 open={isCreateDialogOpen || !!editingUser}
                 onOpenChange={(open) => {
@@ -479,207 +335,57 @@ export default function AdminJudges() {
                 }}
               >
                 <DialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setIsCreateDialogOpen(true);
-                      setCreateRole(role as "admin" | "judge");
-                    }}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nový {role}
+                  <Button size="sm" onClick={() => { setIsCreateDialogOpen(true); setCreateRole(role as "admin" | "judge"); }}>
+                    <Plus className="w-4 h-4 mr-2" />Nový {role}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-sm">
-                  <DialogHeader>
-                    <DialogTitle>{editingUser ? "Upravit účet" : `Vytvořit ${title.toLowerCase()}`}</DialogTitle>
-                  </DialogHeader>
+                  <DialogHeader><DialogTitle>{editingUser ? "Upravit účet" : `Vytvořit ${title.toLowerCase()}`}</DialogTitle></DialogHeader>
                   <Form {...form}>
-                    <form
-                      onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : handleCreateUser)}
-                      className="space-y-4"
-                    >
-                      <FormField
-                        control={form.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Jméno a příjmení</FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                placeholder="Jan Novák"
-                                onChange={(e) => {
-                                  field.onChange(e);
-                                  const email = generateEmailFromName(e.target.value);
-                                  if (email) form.setValue("email", email);
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="email"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Email</FormLabel>
-                            <FormControl>
-                              <Input {...field} placeholder="novak@husovka.cz" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="password"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Heslo</FormLabel>
-                            <FormControl>
-                              <div className="relative">
-                                <Input {...field} type={showPassword ? "text" : "password"} placeholder="••••••••" />
-                                <button
-                                  type="button"
-                                  onClick={() => setShowPassword((prev) => !prev)}
-                                  className="absolute right-2 top-2 text-gray-500"
-                                >
-                                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </button>
-                              </div>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <div className="flex justify-end gap-2 pt-2">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => {
-                            setIsCreateDialogOpen(false);
-                            setEditingUser(null);
-                            setCreateRole(null);
-                            form.reset();
-                          }}
-                        >
-                          Zrušit
-                        </Button>
-                        <Button type="submit" disabled={createUserMutation.isPending || updateUserMutation.isPending}>
-                          {createUserMutation.isPending || updateUserMutation.isPending ? (
-                            <LoadingSpinner size="sm" className="mr-2" />
-                          ) : (
-                            <Plus className="w-4 h-4 mr-2" />
-                          )}
-                          {editingUser ? "Upravit" : "Vytvořit"}
-                        </Button>
-                      </div>
+                    <form onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : handleCreateUser)} className="space-y-4">
+                      <FormField control={form.control} name="name" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Jméno a příjmení</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="Jan Novák" onChange={(e) => { field.onChange(e); const email = generateEmailFromName(e.target.value); if (email) form.setValue("email", email); }} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="email" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl><Input {...field} placeholder="novak@husovka.cz" /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <FormField control={form.control} name="password" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Heslo</FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Input {...field} type={showPassword ? "text" : "password"} placeholder="••••••••" />
+                              <button type="button" onClick={() => setShowPassword((prev) => !prev)} className="absolute right-2 top-2 text-gray-500">
+                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
+                      <Button type="submit" className="w-full">{editingUser ? "Upravit" : "Vytvořit"}</Button>
                     </form>
                   </Form>
                 </DialogContent>
               </Dialog>
             </CardHeader>
-            <CardContent className="space-y-4">{data.map((user) => renderUserCard(user, icon))}</CardContent>
+            <CardContent className="grid gap-4">
+              {data.map((u) => renderUserCard(u, icon))}
+            </CardContent>
           </Card>
         ))}
 
-        {/* BOX: Historie hlasování porotců */}
-        <Card>
-          <CardHeader className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <CardTitle>Historie hlasování porotců</CardTitle>
-              <Button onClick={exportPDF} size="sm">Export PDF</Button>
-            </div>
-
-            {/* Filtrovací lišta */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-muted-foreground whitespace-nowrap">Porotce:</label>
-                <select
-                  className="border rounded px-2 py-1 text-sm bg-background w-full"
-                  value={selectedJudgeId}
-                  onChange={(e) => setSelectedJudgeId(e.target.value)}
-                >
-                  <option value="__ALL__">Všichni</option>
-                  {judges.map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {j.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-muted-foreground whitespace-nowrap">Kolo:</label>
-                <select
-                  className="border rounded px-2 py-1 text-sm bg-background w-full"
-                  value={selectedRoundId}
-                  onChange={(e) => setSelectedRoundId(e.target.value)}
-                >
-                  <option value="__ALL__">Všechna</option>
-                  {availableRoundIds.map((rid) => {
-                    const r = roundsMap.get(rid);
-                    const label = r
-                      ? (r.roundNumber != null ? `Kolo ${r.roundNumber}${r.name ? ` – ${r.name}` : ""}` : (r.name ?? rid))
-                      : rid;
-                    return (
-                      <option key={rid} value={rid}>
-                        {label}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-muted-foreground whitespace-nowrap">Hlas:</label>
-                <select
-                  className="border rounded px-2 py-1 text-sm bg-background w-full"
-                  value={selectedVoteKind}
-                  onChange={(e) => setSelectedVoteKind(e.target.value as any)}
-                >
-                  <option value="__ALL__">Vše</option>
-                  <option value="positive">Pozitivní (👍)</option>
-                  <option value="negative">Negativní (👎)</option>
-                </select>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent>
-            {filteredEvents.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Nic tu není. Změň filtr nebo ještě nikdo nehlasoval.</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="text-left border-b">
-                    <tr>
-                      <th className="py-2 pr-4">Datum / čas</th>
-                      <th className="py-2 pr-4">Porotce</th>
-                      <th className="py-2 pr-4">Soutěžící</th>
-                      <th className="py-2 pr-4">Kolo</th>
-                      <th className="py-2 pr-4">Hlas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredEvents.map((e) => (
-                      <tr key={e.id} className="border-b last:border-b-0">
-                        <td className="py-2 pr-4">{new Date(e.createdAt).toLocaleString("cs-CZ")}</td>
-                        <td className="py-2 pr-4">{e.judgeName}</td>
-                        <td className="py-2 pr-4">{e.contestantName}</td>
-                        <td className="py-2 pr-4">{e.roundLabel}</td>
-                        <td className="py-2 pr-4">{e.vote ? "👍" : "👎"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <Button onClick={exportPDF} className="w-full md:w-1/3 mt-6">Exportovat historii do PDF</Button>
       </div>
     </div>
   );

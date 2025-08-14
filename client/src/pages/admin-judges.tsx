@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -23,27 +23,21 @@ const userSchema = z.object({
 
 type UserForm = z.infer<typeof userSchema>;
 
+type VoteWithContestant = Vote & {
+  contestantName: string;
+};
+
 export default function AdminJudges() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
   const [createRole, setCreateRole] = useState<"admin" | "judge" | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch users
   const { data: users = [], isLoading: isUsersLoading } = useQuery<UserType[]>({
     queryKey: ["/api/users"],
-  });
-
-  // Fetch votes
-  const { data: votes = [], isLoading: isVotesLoading } = useQuery<Vote[]>({
-    queryKey: ["/api/votes/all"],
-    queryFn: async () => {
-      // Fetch all votes for admin
-      const res = await apiRequest("GET", "/api/votes/all");
-      return res.json();
-    },
   });
 
   const judges = users.filter((user) => user.role === "judge");
@@ -147,6 +141,33 @@ export default function AdminJudges() {
     if (email) form.setValue("email", email);
   };
 
+  // ---- nový fetch historie hlasování ----
+  const { data: votesHistory = [], isLoading: isVotesLoading } = useQuery<
+    { judge: UserType; votes: VoteWithContestant[] }[]
+  >(
+    ["votesHistory", judges],
+    async () => {
+      const allVotes = await Promise.all(
+        judges.map(async (judge) => {
+          const votes: Vote[] = await apiRequest("GET", `/api/votes/user/${judge.id}`);
+          // Pro každé hlasování přidáme jméno soutěžícího
+          const votesWithName: VoteWithContestant[] = await Promise.all(
+            votes.map(async (v) => {
+              const contestant: { name: string } = await apiRequest(
+                "GET",
+                `/api/contestants/${v.contestantId}`
+              );
+              return { ...v, contestantName: contestant.name };
+            })
+          );
+          return { judge, votes: votesWithName };
+        })
+      );
+      return allVotes;
+    },
+    { enabled: judges.length > 0 }
+  );
+
   if (isUsersLoading || isVotesLoading)
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -171,7 +192,9 @@ export default function AdminJudges() {
           <div className="text-center sm:text-right">
             <div className="text-sm text-secondary/75">
               Vytvořen:{" "}
-              {user.createdAt ? new Date(user.createdAt).toLocaleDateString("cs-CZ") : "Neznámo"}
+              {user.createdAt
+                ? new Date(user.createdAt).toLocaleDateString("cs-CZ")
+                : "Neznámo"}
             </div>
             <div className="text-xs text-success">Aktivní</div>
           </div>
@@ -187,22 +210,6 @@ export default function AdminJudges() {
       </CardContent>
     </Card>
   );
-
-  const renderVoteHistory = () => {
-    if (!votes || votes.length === 0) return <div>Žádné hlasování zatím nebylo provedeno.</div>;
-
-    return votes.map((v) => (
-      <div
-        key={v.id}
-        className="flex justify-between items-center border-b border-muted py-2 text-sm"
-      >
-        <div>{v.user?.name}</div>
-        <div>{v.contestant?.name}</div>
-        <div>{v.vote ? "✅" : "❌"}</div>
-        <div>{new Date(v.createdAt).toLocaleString("cs-CZ")}</div>
-      </div>
-    ));
-  };
 
   return (
     <div className="min-h-screen p-4 md:p-6 bg-background">
@@ -356,12 +363,32 @@ export default function AdminJudges() {
           </Card>
         ))}
 
+        {/* BOX: Historie hlasování porotců */}
         <Card>
           <CardHeader>
             <CardTitle>Historie hlasování porotců</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="bg-muted p-4 rounded-lg text-sm space-y-2">{renderVoteHistory()}</div>
+          <CardContent className="space-y-4">
+            {votesHistory.length === 0 ? (
+              <p>Žádné hlasování zatím nebylo provedeno.</p>
+            ) : (
+              votesHistory.map(({ judge, votes }) => (
+                <div key={judge.id} className="border rounded p-2">
+                  <h4 className="font-semibold">{judge.name}</h4>
+                  {votes.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Žádné hlasování</p>
+                  ) : (
+                    <ul className="text-sm">
+                      {votes.map((v) => (
+                        <li key={v.id}>
+                          {v.vote ? "✅" : "❌"} {v.contestantName}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>

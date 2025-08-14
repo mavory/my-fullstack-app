@@ -47,8 +47,8 @@ async function loadAndRegisterFont(doc: jsPDF) {
       return p;
     };
 
-    const regularBase64 = await fetchAsBase64("/fonts/Lexend-Regular.ttf");
-    const boldBase64 = await fetchAsBase64("/fonts/Lexend-Bold.ttf");
+    const regularBase64 = await fetchAsBase64("public/fonts/Lexend-Regular.ttf");
+    const boldBase64 = await fetchAsBase64("public/fonts/Lexend-Bold.ttf");
 
     // @ts-expect-error jsPDF VFS typy
     doc.addFileToVFS("Lexend-Regular.ttf", regularBase64);

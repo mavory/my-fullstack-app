@@ -253,51 +253,59 @@ export default function AdminJudges() {
     </Card>
   );
 
-  const exportPDF = () => {
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    doc.setFont("helvetica");
+const removeDiacritics = (str) => {
+  return str
+    .normalize("NFD")                   // rozdělí diakritiku
+    .replace(/[\u0300-\u036f]/g, "");   // smaže diakritiku
+};
 
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const title = "Historie hlasování porotců";
-    const exportedAt = `Exportováno: ${new Date().toLocaleString("cs-CZ")}`;
+const exportPDF = () => {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  doc.setFont("helvetica");
 
-    // Header
-    doc.setFontSize(16);
-    doc.setFont(undefined, "bold");
-    doc.text(title, 40, 40);
-    doc.setFontSize(10);
-    doc.setFont(undefined, "normal");
-    doc.text(exportedAt, 40, 58);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const title = "Judges' Voting History";
+  const exportedAt = `Exported: ${new Date().toLocaleString("cs-CZ")}`;
 
-    const head = [["Datum / čas", "Porotce", "Soutěžící", "Kolo", "Hlas"]];
-    const body = filteredEvents.map((e) => [
-      new Date(e.createdAt).toLocaleString("cs-CZ"),
-      e.judgeName,
-      e.contestantName,
-      e.roundLabel,
-      e.vote ? "Pozitivní" : "Negativní",
-    ]);
+  // Header
+  doc.setFontSize(16);
+  doc.setFont(undefined, "bold");
+  doc.text(title, 40, 40);
+  doc.setFontSize(10);
+  doc.setFont(undefined, "normal");
+  doc.text(exportedAt, 40, 58);
 
-    autoTable(doc, {
-      head,
-      body,
-      startY: 70,
-      styles: { font: "helvetica", fontSize: 9, cellPadding: 6 },
-      headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
-      margin: { left: 40, right: 40 },
-    });
+  // Tabulka
+  const head = [["Date/Time", "Judge", "Contestant", "Round", "Vote"]];
+  const body = filteredEvents.map((e) => [
+    new Date(e.createdAt).toLocaleString("cs-CZ"),
+    removeDiacritics(e.judgeName),
+    removeDiacritics(e.contestantName),
+    removeDiacritics(e.roundLabel),
+    e.vote ? "Pozitivni" : "Negativni",
+  ]);
 
-    // Footer
-    const pageCount = doc.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(9);
-      doc.text(`Strana ${i} / ${pageCount}`, pageWidth - 80, pageHeight - 20);
-    }
+  autoTable(doc, {
+    head,
+    body,
+    startY: 70,
+    styles: { font: "helvetica", fontSize: 9, cellPadding: 6 },
+    headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
+    margin: { left: 40, right: 40 },
+  });
 
-    doc.save(`hlasovani_${Date.now()}.pdf`);
-  };
+  // Footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(9);
+    doc.text(`Strana ${i} / ${pageCount}`, pageWidth - 80, pageHeight - 20);
+  }
+
+  doc.save(`hlasovani_${Date.now()}.pdf`);
+};
+
 
   if (isUsersLoading || isRoundsLoading || isContestantsLoading || isVotesLoading) {
     return (

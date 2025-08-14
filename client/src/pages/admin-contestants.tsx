@@ -15,7 +15,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import type { Round, Contestant } from "@shared/schema";
@@ -50,7 +49,6 @@ export default function AdminContestants() {
   const [timers, setTimers] = useState<Record<string, number>>({});
   const [runningTimers, setRunningTimers] = useState<Record<string, boolean>>({});
 
-  const [csvLoading, setCsvLoading] = useState(false);
   const [csvSummary, setCsvSummary] = useState<{ added: number; skipped: string[] } | null>(null);
 
   useEffect(() => {
@@ -215,45 +213,39 @@ export default function AdminContestants() {
 
   const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
-    setCsvLoading(true);
-    setCsvSummary(null);
     const file = e.target.files[0];
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
       const rows = text.split("\n").map((r) => r.trim()).filter(Boolean);
-      setTimeout(() => {
-        const newContestants: ContestantForm[] = [];
-        const skipped: string[] = [];
+      const newContestants: ContestantForm[] = [];
+      const skipped: string[] = [];
 
-        rows.forEach((row) => {
-          const cols = row.split(",").map((v) => v.trim());
-          const [name, className, ageStr, category = "-", catName = "-", roundId = ""] = cols;
-          const age = parseInt(ageStr || "0", 10);
+      rows.forEach((row) => {
+        const cols = row.split(",").map((v) => v.trim());
+        const [name, className, ageStr, category = "-", catName = "-", roundId = ""] = cols;
+        const age = parseInt(ageStr || "0", 10);
 
-          const exists = Object.values(contestantsByRound).flat().some(
-            (c) =>
-              c.name === name &&
-              c.className === className &&
-              c.age === age &&
-              (c.roundId ?? "") === roundId
-          );
+        const exists = Object.values(contestantsByRound).flat().some(
+          (c) =>
+            c.name === name &&
+            c.className === className &&
+            c.age === age &&
+            (c.roundId ?? "") === roundId
+        );
 
-          if (exists) {
-            skipped.push(name + " (" + className + ")");
-          } else {
-            newContestants.push({ name, className, age, category, description: catName, roundId, order: 1 });
-          }
-        });
+        if (exists) {
+          skipped.push(name + " (" + className + ")");
+        } else {
+          const order = (contestantsByRound[roundId]?.length ?? 0) + newContestants.filter((x) => x.roundId === roundId).length + 1;
+          newContestants.push({ name, className, age, category, description: catName, roundId, order });
+        }
+      });
 
-        // Vloží nové soutěžící přes mutation API
-        newContestants.forEach((c) => {
-          createContestantMutation.mutate({ ...c, order: (contestantsByRound[c.roundId]?.length ?? 0) + 1 });
-        });
+      // Vloží nové soutěžící přes mutation API
+      newContestants.forEach((c) => createContestantMutation.mutate(c));
 
-        setCsvSummary({ added: newContestants.length, skipped });
-        setCsvLoading(false);
-      }, 5000);
+      setCsvSummary({ added: newContestants.length, skipped });
     };
     reader.readAsText(file);
   };
@@ -261,7 +253,7 @@ export default function AdminContestants() {
   if (roundsLoading || anyContestantsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
+        <span className="text-lg text-secondary">Načítám data…</span>
       </div>
     );
   }
@@ -281,7 +273,7 @@ export default function AdminContestants() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex gap-2">
           <Dialog
             open={isCreateDialogOpen}
             onOpenChange={(open) => {
@@ -293,7 +285,7 @@ export default function AdminContestants() {
             }}
           >
             <DialogTrigger asChild>
-              <Button onClick={() => handleOpenCreate()}>
+              <Button>
                 <Plus className="w-4 h-4 mr-2" /> Nový soutěžící
               </Button>
             </DialogTrigger>
@@ -366,7 +358,6 @@ export default function AdminContestants() {
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     <Button type="button" variant="secondary" className="flex-1" onClick={() => { setIsCreateDialogOpen(false); setEditingContestant(null); form.reset(); }}>Zrušit</Button>
                     <Button type="submit" className="flex-1" disabled={createContestantMutation.isPending || updateContestantMutation.isPending}>
-                      {(createContestantMutation.isPending || updateContestantMutation.isPending) && <LoadingSpinner size="sm" className="mr-2" />}
                       {editingContestant ? "Upravit" : "Vytvořit"}
                     </Button>
                   </div>
@@ -375,18 +366,10 @@ export default function AdminContestants() {
             </DialogContent>
           </Dialog>
 
-          <div>
-            <label className="flex items-center gap-2 cursor-pointer px-4 py-2 bg-blue-600 text-white rounded">
-              Import CSV
-              <input type="file" accept=".csv" className="hidden" onChange={handleCsvImport} />
-            </label>
-            {csvLoading && <span className="ml-2 text-sm text-gray-600">Načítání CSV…</span>}
-            {csvSummary && (
-              <div className="mt-2 text-sm text-secondary/80">
-                Přidáno: {csvSummary.added}, přeskočeno: {csvSummary.skipped.join(", ")}
-              </div>
-            )}
-          </div>
+          <label className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded cursor-pointer">
+            Import CSV
+            <input type="file" accept=".csv" className="hidden" onChange={handleCsvImport} />
+          </label>
         </div>
       </div>
 

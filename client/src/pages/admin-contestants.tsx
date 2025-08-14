@@ -39,6 +39,7 @@ const CATEGORY_OPTIONS = [
   "DJ performance","Slam poetry","Literární čtení","Debata / rétorika",
 ];
 
+/* ===== Komponent ===== */
 export default function AdminContestants() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -46,9 +47,11 @@ export default function AdminContestants() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingContestant, setEditingContestant] = useState<Contestant | null>(null);
 
-  // časomíra – sekundy + běžící stav
   const [timers, setTimers] = useState<Record<string, number>>({});
   const [runningTimers, setRunningTimers] = useState<Record<string, boolean>>({});
+
+  const [csvLoading, setCsvLoading] = useState(false);
+  const [csvSummary, setCsvSummary] = useState<{ added: number; skipped: string[] } | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -63,12 +66,10 @@ export default function AdminContestants() {
     return () => clearInterval(id);
   }, [runningTimers]);
 
-  /* ===== Data: kola ===== */
   const { data: rounds = [], isLoading: roundsLoading } = useQuery<Round[]>({
     queryKey: ["/api/rounds"],
   });
 
-  /* ===== Data: soutěžící per kolo ===== */
   const contestantsPerRoundQueries = useQueries({
     queries: (rounds ?? []).map((r) => ({
       queryKey: ["/api/contestants/round", r.id],
@@ -87,7 +88,6 @@ export default function AdminContestants() {
 
   const anyContestantsLoading = contestantsPerRoundQueries.some((q) => q.isLoading);
 
-  /* ===== Form ===== */
   const form = useForm<ContestantForm>({
     resolver: zodResolver(contestantSchema),
     defaultValues: {
@@ -101,14 +101,6 @@ export default function AdminContestants() {
     },
   });
 
-  /* ===== CSV Import State ===== */
-  const [csvImportStatus, setCsvImportStatus] = useState<{
-    loading: boolean;
-    added: ContestantForm[];
-    skipped: string[];
-  }>({ loading: false, added: [], skipped: [] });
-
-  /* ===== Helpers ===== */
   const invalidateContestantsOf = (roundId?: string) => {
     if (!roundId) {
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "/api/contestants/round" });
@@ -119,7 +111,6 @@ export default function AdminContestants() {
 
   const getTimeColor = (s: number) => (s < 120 ? "text-green-600" : s < 180 ? "text-orange-600" : "text-red-600");
 
-  /* ===== Mutace ===== */
   const createContestantMutation = useMutation({
     mutationFn: async (data: ContestantForm) => {
       const res = await apiRequest("POST", "/api/contestants", data);
@@ -178,59 +169,6 @@ export default function AdminContestants() {
     onError: () => toast({ title: "Chyba", description: "Nepodařilo se změnit viditelnost.", variant: "destructive" }),
   });
 
-  /* ===== CSV Import Handler ===== */
-  const handleCSVImport = (roundId: string) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".csv";
-    input.click();
-
-    input.onchange = async () => {
-      if (!input.files?.length) return;
-      setCsvImportStatus({ loading: true, added: [], skipped: [] });
-
-      const file = input.files[0];
-      const text = await file.text();
-      const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-
-      const added: ContestantForm[] = [];
-      const skipped: string[] = [];
-      const startTime = Date.now();
-
-      for (const line of lines) {
-        const [name, className, ageStr, category, description] = line.split(",").map(s => s.trim());
-        const age = parseInt(ageStr || "0", 10);
-        const exists = (contestantsByRound[roundId] ?? []).some(
-          (c) => c.name === name && c.className === className && c.age === age
-        );
-        if (exists) {
-          skipped.push(name);
-          continue;
-        }
-        added.push({
-          name,
-          className,
-          age,
-          category: category || "-",
-          description: description || "",
-          roundId,
-          order: (contestantsByRound[roundId]?.length ?? 0) + added.length + 1,
-        });
-      }
-
-      for (const c of added) {
-        await createContestantMutation.mutateAsync(c);
-      }
-
-      const elapsed = Date.now() - startTime;
-      const remaining = 5000 - elapsed;
-      if (remaining > 0) await new Promise(res => setTimeout(res, remaining));
-
-      setCsvImportStatus({ loading: false, added, skipped });
-    };
-  };
-
-  /* ===== Handlery ===== */
   const handleOpenCreate = (roundId?: string) => {
     setIsCreateDialogOpen(true);
     setEditingContestant(null);
@@ -275,7 +213,51 @@ export default function AdminContestants() {
     }
   };
 
-  /* ===== Loading (jen initial) ===== */
+  const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    setCsvLoading(true);
+    setCsvSummary(null);
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const rows = text.split("\n").map((r) => r.trim()).filter(Boolean);
+      setTimeout(() => {
+        const newContestants: ContestantForm[] = [];
+        const skipped: string[] = [];
+
+        rows.forEach((row) => {
+          const cols = row.split(",").map((v) => v.trim());
+          const [name, className, ageStr, category = "-", catName = "-", roundId = ""] = cols;
+          const age = parseInt(ageStr || "0", 10);
+
+          const exists = Object.values(contestantsByRound).flat().some(
+            (c) =>
+              c.name === name &&
+              c.className === className &&
+              c.age === age &&
+              (c.roundId ?? "") === roundId
+          );
+
+          if (exists) {
+            skipped.push(name + " (" + className + ")");
+          } else {
+            newContestants.push({ name, className, age, category, description: catName, roundId, order: 1 });
+          }
+        });
+
+        // Vloží nové soutěžící přes mutation API
+        newContestants.forEach((c) => {
+          createContestantMutation.mutate({ ...c, order: (contestantsByRound[c.roundId]?.length ?? 0) + 1 });
+        });
+
+        setCsvSummary({ added: newContestants.length, skipped });
+        setCsvLoading(false);
+      }, 5000);
+    };
+    reader.readAsText(file);
+  };
+
   if (roundsLoading || anyContestantsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -284,10 +266,8 @@ export default function AdminContestants() {
     );
   }
 
-  /* ===== UI ===== */
   return (
-    <div className="min-h-screen p-4 sm:p-6 bg-background relative">
-      {/* Header */}
+    <div className="min-h-screen p-4 sm:p-6 bg-background">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Link href="/admin">
@@ -301,13 +281,7 @@ export default function AdminContestants() {
           </div>
         </div>
 
-        <div className="flex gap-2">
-          {/* CSV Import Button */}
-          <Button onClick={() => handleCSVImport("")}>
-            <Plus className="w-4 h-4 mr-2" /> Import CSV
-          </Button>
-
-          {/* Globální přidání soutěžícího */}
+        <div className="flex flex-col sm:flex-row gap-2">
           <Dialog
             open={isCreateDialogOpen}
             onOpenChange={(open) => {
@@ -329,11 +303,10 @@ export default function AdminContestants() {
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  {/* Form Fields */}
                   <FormField name="name" control={form.control} render={({ field }) => (
                     <FormItem>
                       <FormLabel>Jméno a příjmení</FormLabel>
-                      <FormControl><Input {...field} placeholder="Anna Novakova" /></FormControl>
+                      <FormControl><Input {...field} placeholder="Anna Nováková" /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
@@ -355,6 +328,7 @@ export default function AdminContestants() {
                       </FormItem>
                     )} />
                   </div>
+
                   <FormField name="category" control={form.control} render={({ field }) => (
                     <FormItem>
                       <FormLabel>Kategorie</FormLabel>
@@ -367,13 +341,15 @@ export default function AdminContestants() {
                       <FormMessage />
                     </FormItem>
                   )} />
+
                   <FormField name="description" control={form.control} render={({ field }) => (
                     <FormItem>
                       <FormLabel>Popis vystoupení</FormLabel>
-                      <FormControl><Textarea {...field} placeholder="Strucny popis…"/></FormControl>
+                      <FormControl><Textarea {...field} placeholder="Stručný popis…"/></FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
+
                   <FormField name="roundId" control={form.control} render={({ field }) => (
                     <FormItem>
                       <FormLabel>Kolo</FormLabel>
@@ -386,77 +362,121 @@ export default function AdminContestants() {
                       <FormMessage />
                     </FormItem>
                   )} />
+
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                    <Button type="button" variant="secondary" className="flex-1" onClick={() => { setIsCreateDialogOpen(false); setEditingContestant(null); form.reset(); }}>Zrusit</Button>
+                    <Button type="button" variant="secondary" className="flex-1" onClick={() => { setIsCreateDialogOpen(false); setEditingContestant(null); form.reset(); }}>Zrušit</Button>
                     <Button type="submit" className="flex-1" disabled={createContestantMutation.isPending || updateContestantMutation.isPending}>
                       {(createContestantMutation.isPending || updateContestantMutation.isPending) && <LoadingSpinner size="sm" className="mr-2" />}
-                      {editingContestant ? "Upravit" : "Vytvorit"}
+                      {editingContestant ? "Upravit" : "Vytvořit"}
                     </Button>
                   </div>
                 </form>
               </Form>
             </DialogContent>
           </Dialog>
+
+          <div>
+            <label className="flex items-center gap-2 cursor-pointer px-4 py-2 bg-blue-600 text-white rounded">
+              Import CSV
+              <input type="file" accept=".csv" className="hidden" onChange={handleCsvImport} />
+            </label>
+            {csvLoading && <span className="ml-2 text-sm text-gray-600">Načítání CSV…</span>}
+            {csvSummary && (
+              <div className="mt-2 text-sm text-secondary/80">
+                Přidáno: {csvSummary.added}, přeskočeno: {csvSummary.skipped.join(", ")}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* CSV Import Loading + Stats */}
-      {csvImportStatus.loading && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="flex flex-col items-center gap-4 p-6 bg-background rounded shadow-lg">
-            <div className="animate-spin border-4 border-t-4 border-gray-300 rounded-full w-16 h-16"></div>
-            <p className="text-lg font-medium text-secondary">Importuji CSV...</p>
-          </div>
-        </div>
-      )}
-
-      {!csvImportStatus.loading && (csvImportStatus.added.length > 0 || csvImportStatus.skipped.length > 0) && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="flex flex-col gap-4 p-6 bg-background rounded shadow-lg max-w-sm">
-            <h2 className="text-xl font-bold text-secondary">Import dokončen</h2>
-            <p>Přidáno: {csvImportStatus.added.length}</p>
-            <p>Nezahrnuto (duplicitní): {csvImportStatus.skipped.length}</p>
-            {csvImportStatus.skipped.length > 0 && (
-              <p className="text-sm text-muted-foreground">Nepřidáno: {csvImportStatus.skipped.join(", ")}</p>
-            )}
-            <Button onClick={() => setCsvImportStatus({ loading: false, added: [], skipped: [] })}>Zavřít</Button>
-          </div>
-        </div>
-      )}
-
-      {/* Kola a soutěžící */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {rounds.map((r) => (
-          <Card key={r.id} className="shadow-sm border">
-            <CardHeader>
-              <CardTitle>{r.roundNumber ? `${r.roundNumber}. kolo` : r.name}</CardTitle>
-              <div className="flex gap-2 mt-2">
-                <Button size="sm" onClick={() => handleOpenCreate(r.id)}><Plus className="w-4 h-4 mr-1" /> Přidat</Button>
-                <Button size="sm" onClick={() => handleCSVImport(r.id)}>Import CSV</Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-2">
-                {contestantsByRound[r.id]?.map((c) => (
-                  <div key={c.id} className="flex items-center justify-between p-2 border rounded hover:bg-gray-50">
-                    <div>
-                      <p className="font-medium">{c.name} ({c.className})</p>
-                      <p className="text-sm text-muted-foreground">{c.category} | {c.description}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-mono ${getTimeColor(timers[c.id] ?? 0)}`}>{timers[c.id] ?? 0}s</span>
-                      <Button size="icon" variant="ghost" onClick={() => toggleVisibilityMutation.mutate({ id: c.id, isVisible: !(c.isVisibleToJudges ?? false), roundId: r.id })}>
-                        {(c.isVisibleToJudges ?? false) ? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={() => handleEditContestant(c)}><Edit className="w-4 h-4"/></Button>
-                      <Button size="icon" variant="ghost" onClick={() => handleDeleteContestant(c.id)}><Trash2 className="w-4 h-4"/></Button>
-                    </div>
+      <div className="max-w-4xl mx-auto grid gap-5">
+        {rounds.map((round) => {
+          const list = contestantsByRound[round.id] ?? [];
+          return (
+            <Card key={round.id} className="shadow-sm">
+              <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <div className="flex-1">
+                  <CardTitle className="flex items-center gap-2">
+                    <span className="text-lg sm:text-xl">{round.roundNumber ? `${round.roundNumber}. kolo` : (round.name ?? "Kolo")}</span>
+                    {round.isActive && (
+                      <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Aktivní</span>
+                    )}
+                  </CardTitle>
+                  <div className="mt-1 text-sm text-secondary/70">
+                    <span className="mr-3">Soutěžících: <b>{list.length}</b></span>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                  {round.description && <p className="mt-1 text-sm text-secondary/70">{round.description}</p>}
+                </div>
+
+                <Button onClick={() => handleOpenCreate(round.id)}>
+                  <Plus className="w-4 h-4 mr-2" /> Přidat soutěžícího
+                </Button>
+              </CardHeader>
+
+              <CardContent className="grid gap-3">
+                {list.length === 0 ? (
+                  <div className="text-secondary/60 text-sm">Zatím žádní soutěžící v tomto kole.</div>
+                ) : (
+                  list.map((c) => {
+                    const time = timers[c.id] ?? 0;
+                    return (
+                      <Card key={c.id} className="border border-border/60 rounded-xl">
+                        <CardContent className="p-4 flex items-start justify-between gap-4">
+                          <div className="flex items-start gap-3">
+                            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center shrink-0">
+                              <User className="w-6 h-6 text-secondary/60" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-secondary">{c.name}</h3>
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${c.isVisibleToJudges ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"}`}>
+                                  {c.isVisibleToJudges ? "Viditelný porotcům" : "Skrytý"}
+                                </span>
+                                {time > 0 && (
+                                  <span className={`ml-1 text-xs font-semibold ${getTimeColor(time)}`}>
+                                    {Math.floor(time / 60)}:{(time % 60).toString().padStart(2, "0")}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-secondary/75">
+                                <span className="inline-flex items-center gap-1"><GraduationCap className="w-4 h-4" />{c.className}</span>
+                                <span className="inline-flex items-center gap-1"><Cake className="w-4 h-4" />{c.age} let</span>
+                                <span className="inline-flex items-center gap-1"><Music className="w-4 h-4" />{c.category}</span>
+                              </div>
+                              {c.description && <p className="mt-2 text-sm text-secondary/75 max-w-xl">{c.description}</p>}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Button
+                              variant={c.isVisibleToJudges ? "outline" : "default"}
+                              size="icon"
+                              onClick={() =>
+                                toggleVisibilityMutation.mutate({ id: c.id, isVisible: !c.isVisibleToJudges, roundId: c.roundId ?? undefined })
+                              }
+                              title={c.isVisibleToJudges ? "Skrýt" : "Zobrazit porotcům"}
+                            >
+                              {c.isVisibleToJudges ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </Button>
+
+                            <Button variant="outline" size="icon" onClick={() => handleEditContestant(c)} title="Upravit">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+
+                            <Button variant="destructive" size="icon" onClick={() => handleDeleteContestant(c.id)} title="Smazat">
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

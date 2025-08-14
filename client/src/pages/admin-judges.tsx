@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"; 
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -29,36 +29,6 @@ async function getJSON<T>(method: string, url: string, body?: any): Promise<T> {
   return res.json();
 }
 
-async function loadAndRegisterFont(doc: jsPDF) {
-  try {
-    const fetchAsBase64 = async (path: string) => {
-      const resp = await fetch(path);
-      const blob = await resp.blob();
-      const reader = new FileReader();
-      const p = new Promise<string>((resolve) => {
-        reader.onload = () => resolve((reader.result as string).split(",")[1] || "");
-      });
-      reader.readAsDataURL(blob);
-      return p;
-    };
-
-    const regularBase64 = await fetchAsBase64("/fonts/Roboto-Regular.ttf");
-    const boldBase64 = await fetchAsBase64("/fonts/Roboto-Bold.ttf");
-
-    // @ts-expect-error jsPDF VFS typy
-    doc.addFileToVFS("Roboto-Regular.ttf", regularBase64);
-    // @ts-expect-error jsPDF VFS typy
-    doc.addFileToVFS("Roboto-Bold.ttf", boldBase64);
-    // @ts-expect-error jsPDF VFS typy
-    doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
-    // @ts-expect-error jsPDF VFS typy
-    doc.addFont("Roboto-Bold.ttf", "Roboto", "bold");
-    doc.setFont("Roboto", "normal");
-  } catch {
-    doc.setFont("helvetica", "normal");
-  }
-}
-
 export default function AdminJudges() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
@@ -72,7 +42,9 @@ export default function AdminJudges() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: users = [], isLoading: isUsersLoading } = useQuery<UserType[]>({ queryKey: ["/api/users"] });
+  const { data: users = [], isLoading: isUsersLoading } = useQuery<UserType[]>({
+    queryKey: ["/api/users"],
+  });
   const judges = useMemo(() => users.filter((u) => u.role === "judge"), [users]);
   const admins = useMemo(() => users.filter((u) => u.role === "admin"), [users]);
   const judgeIds = useMemo(() => judges.map((j) => j.id), [judges]);
@@ -92,7 +64,9 @@ export default function AdminJudges() {
     queryKey: ["/api/contestants/byRounds", roundIds],
     enabled: roundIds.length > 0,
     queryFn: async () => {
-      const all = await Promise.all(roundIds.map((rid) => getJSON<Contestant[]>("GET", `/api/contestants/round/${rid}`)));
+      const all = await Promise.all(
+        roundIds.map((rid) => getJSON<Contestant[]>("GET", `/api/contestants/round/${rid}`))
+      );
       return all.flat();
     },
   });
@@ -162,12 +136,10 @@ export default function AdminJudges() {
 
   const filteredEvents = useMemo(() => {
     let list = voteEvents;
-
     if (selectedJudgeId !== "__ALL__") list = list.filter((e) => e.judgeId === selectedJudgeId);
     if (selectedRoundId !== "__ALL__") list = list.filter((e) => e.roundId === selectedRoundId);
     if (selectedVoteKind !== "__ALL__")
       list = list.filter((e) => (selectedVoteKind === "positive" ? e.vote === true : e.vote === false));
-
     return list;
   }, [voteEvents, selectedJudgeId, selectedRoundId, selectedVoteKind]);
 
@@ -192,7 +164,8 @@ export default function AdminJudges() {
   });
 
   const updateUserMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<UserForm> }) => getJSON("PUT", `/api/users/${id}`, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<UserForm> }) =>
+      getJSON("PUT", `/api/users/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setEditingUser(null);
@@ -257,14 +230,21 @@ export default function AdminJudges() {
           <div className="flex-1 text-center sm:text-left">
             <h3 className="font-semibold text-secondary">{user.name}</h3>
             <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-secondary/75">
-              <Mail className="w-3 h-3" /> {user.email}
+              <Mail className="w-4 h-4" />
+              {user.email}
             </div>
           </div>
-          <div className="flex gap-2 justify-center sm:justify-end">
-            <Button size="sm" variant="outline" onClick={() => handleEditUser(user)}>
+          <div className="text-center sm:text-right">
+            <div className="text-sm text-secondary/75">
+              Vytvořen: {user.createdAt ? new Date(user.createdAt).toLocaleDateString("cs-CZ") : "Neznámo"}
+            </div>
+            <div className="text-xs text-success">Aktivní</div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
               <Edit className="w-4 h-4" />
             </Button>
-            <Button size="sm" variant="destructive" onClick={() => handleDeleteUser(user.id)}>
+            <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user.id)}>
               <Trash2 className="w-4 h-4" />
             </Button>
           </div>
@@ -273,41 +253,22 @@ export default function AdminJudges() {
     </Card>
   );
 
-  const exportPDF = async () => {
+  const exportPDF = () => {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
-    await loadAndRegisterFont(doc);
+    doc.setFont("helvetica");
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const sourceUrl = "https://hlasovani-v2.onrender.com/";
     const title = "Historie hlasování porotců";
     const exportedAt = `Exportováno: ${new Date().toLocaleString("cs-CZ")}`;
 
-    const drawHeader = () => {
-      doc.setFont("Roboto", "bold");
-      doc.setFontSize(12);
-      doc.text(`Data exportována z: ${sourceUrl}`, 40, 28, { baseline: "alphabetic" });
-
-      doc.setFont("Roboto", "bold");
-      doc.setFontSize(16);
-      doc.text(title, 40, 50);
-
-      doc.setFont("Roboto", "normal");
-      doc.setFontSize(10);
-      doc.text(exportedAt, 40, 66);
-    };
-
-    const drawFooter = () => {
-      const pageCount = doc.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFont("Roboto", "normal");
-        doc.setFontSize(9);
-        doc.text(`Strana ${i} / ${pageCount}`, pageWidth - 80, pageHeight - 20);
-      }
-    };
-
-    drawHeader();
+    // Header
+    doc.setFontSize(16);
+    doc.setFont(undefined, "bold");
+    doc.text(title, 40, 40);
+    doc.setFontSize(10);
+    doc.setFont(undefined, "normal");
+    doc.text(exportedAt, 40, 58);
 
     const head = [["Datum / čas", "Porotce", "Soutěžící", "Kolo", "Hlas"]];
     const body = filteredEvents.map((e) => [
@@ -321,33 +282,20 @@ export default function AdminJudges() {
     autoTable(doc, {
       head,
       body,
-      startY: 88,
-      styles: {
-        font: "Roboto",
-        fontStyle: "normal",
-        fontSize: 9,
-        cellPadding: 6,
-        overflow: "linebreak",
-        valign: "middle",
-      },
-      headStyles: {
-        font: "Roboto",
-        fontStyle: "bold",
-        fillColor: [245, 245, 245],
-        textColor: [0, 0, 0],
-      },
-      columnStyles: {
-        0: { cellWidth: 120 },
-        1: { cellWidth: 150 },
-        2: { cellWidth: 160 },
-        3: { cellWidth: 150 },
-        4: { cellWidth: 90 },
-      },
+      startY: 70,
+      styles: { font: "helvetica", fontSize: 9, cellPadding: 6 },
+      headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
       margin: { left: 40, right: 40 },
-      didDrawPage: () => drawHeader(),
     });
 
-    drawFooter();
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(9);
+      doc.text(`Strana ${i} / ${pageCount}`, pageWidth - 80, pageHeight - 20);
+    }
+
     doc.save(`hlasovani_${Date.now()}.pdf`);
   };
 
@@ -374,135 +322,136 @@ export default function AdminJudges() {
       </div>
 
       <div className="max-w-5xl mx-auto space-y-8">
-        {[{ title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" }, { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" }].map(
-          ({ title, data, icon, role }) => (
-            <Card key={role}>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  {icon}
-                  {title} ({data.length})
-                </CardTitle>
-                <Dialog
-                  open={isCreateDialogOpen || !!editingUser}
-                  onOpenChange={(open) => {
-                    if (!open) {
-                      setIsCreateDialogOpen(false);
-                      setEditingUser(null);
-                      setCreateRole(null);
-                      form.reset();
-                    }
-                  }}
-                >
-                  <DialogTrigger asChild>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setIsCreateDialogOpen(true);
-                        setCreateRole(role as "admin" | "judge");
-                      }}
+        {[
+          { title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" },
+          { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" },
+        ].map(({ title, data, icon, role }) => (
+          <Card key={role}>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                {icon}
+                {title} ({data.length})
+              </CardTitle>
+              <Dialog
+                open={isCreateDialogOpen || !!editingUser}
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setIsCreateDialogOpen(false);
+                    setEditingUser(null);
+                    setCreateRole(null);
+                    form.reset();
+                  }
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setIsCreateDialogOpen(true);
+                      setCreateRole(role as "admin" | "judge");
+                    }}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Nový {role}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>{editingUser ? "Upravit účet" : `Vytvořit ${title.toLowerCase()}`}</DialogTitle>
+                  </DialogHeader>
+                  <Form {...form}>
+                    <form
+                      onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : handleCreateUser)}
+                      className="space-y-4"
                     >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Nový {role}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-sm">
-                    <DialogHeader>
-                      <DialogTitle>{editingUser ? "Upravit účet" : `Vytvořit ${title.toLowerCase()}`}</DialogTitle>
-                    </DialogHeader>
-                    <Form {...form}>
-                      <form
-                        onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : handleCreateUser)}
-                        className="space-y-4"
-                      >
-                        <FormField
-                          control={form.control}
-                          name="name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Jméno a příjmení</FormLabel>
-                              <FormControl>
-                                <Input
-                                  {...field}
-                                  placeholder="Jan Novák"
-                                  onChange={(e) => {
-                                    field.onChange(e);
-                                    const email = generateEmailFromName(e.target.value);
-                                    if (email) form.setValue("email", email);
-                                  }}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Jméno a příjmení</FormLabel>
+                            <FormControl>
+                              <Input
+                                {...field}
+                                placeholder="Jan Novák"
+                                onChange={(e) => {
+                                  field.onChange(e);
+                                  const email = generateEmailFromName(e.target.value);
+                                  if (email) form.setValue("email", email);
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="email"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Email</FormLabel>
+                            <FormControl>
+                              <Input {...field} placeholder="novak@husovka.cz" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="password"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Heslo</FormLabel>
+                            <FormControl>
+                              <div className="relative">
+                                <Input {...field} type={showPassword ? "text" : "password"} placeholder="••••••••" />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPassword((prev) => !prev)}
+                                  className="absolute right-2 top-2 text-gray-500"
+                                >
+                                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            setIsCreateDialogOpen(false);
+                            setEditingUser(null);
+                            setCreateRole(null);
+                            form.reset();
+                          }}
+                        >
+                          Zrušit
+                        </Button>
+                        <Button type="submit" disabled={createUserMutation.isLoading || updateUserMutation.isLoading}>
+                          {createUserMutation.isLoading || updateUserMutation.isLoading ? (
+                            <LoadingSpinner size="sm" className="mr-2" />
+                          ) : (
+                            <Plus className="w-4 h-4 mr-2" />
                           )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Email</FormLabel>
-                              <FormControl>
-                                <Input {...field} placeholder="novak@husovka.cz" />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="password"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Heslo</FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <Input {...field} type={showPassword ? "text" : "password"} placeholder="••••••••" />
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowPassword((prev) => !prev)}
-                                    className="absolute right-2 top-2 text-gray-500"
-                                  >
-                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                  </button>
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <div className="flex justify-end gap-2 pt-2">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            onClick={() => {
-                              setIsCreateDialogOpen(false);
-                              setEditingUser(null);
-                              setCreateRole(null);
-                              form.reset();
-                            }}
-                          >
-                            Zrušit
-                          </Button>
-                          <Button type="submit" disabled={createUserMutation.isPending || updateUserMutation.isPending}>
-                            {createUserMutation.isPending || updateUserMutation.isPending ? (
-                              <LoadingSpinner size="sm" className="mr-2" />
-                            ) : (
-                              <Plus className="w-4 h-4 mr-2" />
-                            )}
-                            {editingUser ? "Upravit" : "Vytvořit"}
-                          </Button>
-                        </div>
-                      </form>
-                    </Form>
-                  </DialogContent>
-                </Dialog>
-              </CardHeader>
-              <CardContent className="space-y-4">{data.map((user) => renderUserCard(user, icon))}</CardContent>
-            </Card>
-          )
-        )}
+                          {editingUser ? "Upravit" : "Vytvořit"}
+                        </Button>
+                      </div>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent className="space-y-4">{data.map((user) => renderUserCard(user, icon))}</CardContent>
+          </Card>
+        ))}
 
-        {/* BOX: Historie hlasování porotců */}
+        {/* Historie hlasování porotců */}
         <Card>
           <CardHeader className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
@@ -512,7 +461,6 @@ export default function AdminJudges() {
               </Button>
             </div>
 
-            {/* Filtrovací lišta */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div className="flex items-center gap-2">
                 <label className="text-sm text-muted-foreground whitespace-nowrap">Porotce:</label>
@@ -540,7 +488,11 @@ export default function AdminJudges() {
                   <option value="__ALL__">Všechna</option>
                   {availableRoundIds.map((rid) => {
                     const r = roundsMap.get(rid);
-                    const label = r ? (r.roundNumber != null ? `Kolo ${r.roundNumber}${r.name ? ` – ${r.name}` : ""}` : r.name ?? rid) : rid;
+                    const label = r
+                      ? r.roundNumber != null
+                        ? `Kolo ${r.roundNumber}${r.name ? ` – ${r.name}` : ""}`
+                        : r.name ?? rid
+                      : rid;
                     return (
                       <option key={rid} value={rid}>
                         {label}

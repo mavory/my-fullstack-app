@@ -28,15 +28,20 @@ export default function AdminJudges() {
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
   const [createRole, setCreateRole] = useState<"admin" | "judge" | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Načtení uživatelů
-  const { data: users = [], isLoading: usersLoading } = useQuery<UserType[]>({
+  // Fetch users
+  const { data: users = [], isLoading: isUsersLoading } = useQuery<UserType[]>({
     queryKey: ["/api/users"],
+  });
+
+  // Fetch votes
+  const { data: votes = [], isLoading: isVotesLoading } = useQuery<Vote[]>({
+    queryKey: ["/api/votes/all"],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/users");
+      // Fetch all votes for admin
+      const res = await apiRequest("GET", "/api/votes/all");
       return res.json();
     },
   });
@@ -142,25 +147,7 @@ export default function AdminJudges() {
     if (email) form.setValue("email", email);
   };
 
-  // Načtení hlasování
-  const { data: votesData = [], isLoading: votesLoading } = useQuery<Vote[]>({
-    queryKey: ["/api/votes"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/api/votes");
-      return res.json();
-    },
-  });
-
-  const renderVoteRow = (vote: Vote) => (
-    <tr key={`${vote.userId}-${vote.contestantId}`}>
-      <td className="px-4 py-2">{vote.userName || vote.userId}</td>
-      <td className="px-4 py-2">{vote.contestantName || vote.contestantId}</td>
-      <td className="px-4 py-2">{vote.vote ? "ANO" : "NE"}</td>
-      <td className="px-4 py-2">{new Date(vote.createdAt).toLocaleString("cs-CZ")}</td>
-    </tr>
-  );
-
-  if (usersLoading)
+  if (isUsersLoading || isVotesLoading)
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" />
@@ -184,25 +171,15 @@ export default function AdminJudges() {
           <div className="text-center sm:text-right">
             <div className="text-sm text-secondary/75">
               Vytvořen:{" "}
-              {user.createdAt
-                ? new Date(user.createdAt).toLocaleDateString("cs-CZ")
-                : "Neznámo"}
+              {user.createdAt ? new Date(user.createdAt).toLocaleDateString("cs-CZ") : "Neznámo"}
             </div>
             <div className="text-xs text-success">Aktivní</div>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleEditUser(user)}
-            >
+            <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
               <Edit className="w-4 h-4" />
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleDeleteUser(user.id)}
-            >
+            <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user.id)}>
               <Trash2 className="w-4 h-4" />
             </Button>
           </div>
@@ -210,6 +187,22 @@ export default function AdminJudges() {
       </CardContent>
     </Card>
   );
+
+  const renderVoteHistory = () => {
+    if (!votes || votes.length === 0) return <div>Žádné hlasování zatím nebylo provedeno.</div>;
+
+    return votes.map((v) => (
+      <div
+        key={v.id}
+        className="flex justify-between items-center border-b border-muted py-2 text-sm"
+      >
+        <div>{v.user?.name}</div>
+        <div>{v.contestant?.name}</div>
+        <div>{v.vote ? "✅" : "❌"}</div>
+        <div>{new Date(v.createdAt).toLocaleString("cs-CZ")}</div>
+      </div>
+    ));
+  };
 
   return (
     <div className="min-h-screen p-4 md:p-6 bg-background">
@@ -226,7 +219,7 @@ export default function AdminJudges() {
       </div>
 
       <div className="max-w-4xl mx-auto space-y-8">
-        {[ 
+        {[
           { title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" },
           { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" }
         ].map(({ title, data, icon, role }) => (
@@ -262,16 +255,12 @@ export default function AdminJudges() {
                 <DialogContent className="max-w-sm">
                   <DialogHeader>
                     <DialogTitle>
-                      {editingUser
-                        ? "Upravit účet"
-                        : `Vytvořit ${title.toLowerCase()}`}
+                      {editingUser ? "Upravit účet" : `Vytvořit ${title.toLowerCase()}`}
                     </DialogTitle>
                   </DialogHeader>
                   <Form {...form}>
                     <form
-                      onSubmit={form.handleSubmit(
-                        editingUser ? handleUpdateUser : handleCreateUser
-                      )}
+                      onSubmit={form.handleSubmit(editingUser ? handleUpdateUser : handleCreateUser)}
                       className="space-y-4"
                     >
                       <FormField
@@ -322,16 +311,10 @@ export default function AdminJudges() {
                                 />
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    setShowPassword((prev) => !prev)
-                                  }
+                                  onClick={() => setShowPassword((prev) => !prev)}
                                   className="absolute right-2 top-2 text-gray-500"
                                 >
-                                  {showPassword ? (
-                                    <EyeOff className="w-4 h-4" />
-                                  ) : (
-                                    <Eye className="w-4 h-4" />
-                                  )}
+                                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
                               </div>
                             </FormControl>
@@ -354,13 +337,9 @@ export default function AdminJudges() {
                         </Button>
                         <Button
                           type="submit"
-                          disabled={
-                            createUserMutation.isPending ||
-                            updateUserMutation.isPending
-                          }
+                          disabled={createUserMutation.isPending || updateUserMutation.isPending}
                         >
-                          {createUserMutation.isPending ||
-                          updateUserMutation.isPending ? (
+                          {createUserMutation.isPending || updateUserMutation.isPending ? (
                             <LoadingSpinner size="sm" className="mr-2" />
                           ) : (
                             <Plus className="w-4 h-4 mr-2" />
@@ -373,41 +352,16 @@ export default function AdminJudges() {
                 </DialogContent>
               </Dialog>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {data.map((user) => renderUserCard(user, icon))}
-            </CardContent>
+            <CardContent className="space-y-4">{data.map((user) => renderUserCard(user, icon))}</CardContent>
           </Card>
         ))}
 
-        {/* Nový box s historií hlasování */}
         <Card>
           <CardHeader>
             <CardTitle>Historie hlasování porotců</CardTitle>
           </CardHeader>
           <CardContent>
-            {votesLoading ? (
-              <LoadingSpinner size="sm" />
-            ) : votesData.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                Žádné hlasování zatím nebylo provedeno.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse border border-gray-300 text-sm">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="px-4 py-2 text-left">Porotce</th>
-                      <th className="px-4 py-2 text-left">Soutěžící</th>
-                      <th className="px-4 py-2 text-left">Hlas</th>
-                      <th className="px-4 py-2 text-left">Datum a čas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {votesData.map(renderVoteRow)}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <div className="bg-muted p-4 rounded-lg text-sm space-y-2">{renderVoteHistory()}</div>
           </CardContent>
         </Card>
       </div>

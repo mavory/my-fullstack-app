@@ -329,13 +329,13 @@ export default function AdminJudges() {
     const exportedAt = `Exportováno: ${new Date().toLocaleString("cs-CZ")}`;
 
     const drawHeader = () => {
-      doc.setFont("Roboto", "bold");
+      doc.setFont("Lexend", "bold");
       doc.setFontSize(12);
       doc.text(`Data exportována z: ${sourceUrl}`, 40, 28, { baseline: "alphabetic" });
-      doc.setFont("Roboto", "bold");
+      doc.setFont("Lexend", "bold");
       doc.setFontSize(16);
       doc.text(title, 40, 50);
-      doc.setFont("Roboto", "normal");
+      doc.setFont("Lexend", "normal");
       doc.setFontSize(10);
       doc.text(exportedAt, 40, 66);
     };
@@ -345,7 +345,7 @@ export default function AdminJudges() {
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
-        doc.setFont("Roboto", "normal");
+        doc.setFont("Lexend", "normal");
         doc.setFontSize(9);
         doc.text(`Strana ${i} / ${pageCount}`, pageWidth - 80, pageHeight - 20);
       }
@@ -364,7 +364,7 @@ export default function AdminJudges() {
         const g = doc.GState({ opacity: 0.06 });
         // @ts-expect-error setGState existuje v jsPDF runtime
         doc.setGState(g);
-        doc.setFont("Roboto", "bold");
+        doc.setFont("Lexend", "bold");
         doc.setFontSize(48);
         doc.setTextColor(0, 0, 0);
 
@@ -398,7 +398,7 @@ export default function AdminJudges() {
       body,
       startY: 88,
       styles: {
-        font: "Roboto",
+        font: "Lexend",
         fontStyle: "normal",
         fontSize: 9,
         cellPadding: 6,
@@ -406,7 +406,7 @@ export default function AdminJudges() {
         valign: "middle",
       },
       headStyles: {
-        font: "Roboto",
+        font: "Lexend",
         fontStyle: "bold",
         fillColor: [245, 245, 245],
         textColor: [0, 0, 0],

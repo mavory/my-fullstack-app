@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -13,7 +13,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { User as UserType, Vote } from "@shared/schema";
+import type { User as UserType, Vote, Contestant } from "@shared/schema";
 
 const userSchema = z.object({
   name: z.string().min(1, "Jméno je povinné"),
@@ -23,21 +23,22 @@ const userSchema = z.object({
 
 type UserForm = z.infer<typeof userSchema>;
 
-type VoteWithContestant = Vote & {
-  contestantName: string;
-};
-
 export default function AdminJudges() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
   const [createRole, setCreateRole] = useState<"admin" | "judge" | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [votesByJudge, setVotesByJudge] = useState<Record<string, Vote[]>>({});
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const { data: users = [], isLoading: isUsersLoading } = useQuery<UserType[]>({
     queryKey: ["/api/users"],
+  });
+
+  const { data: contestants = [], isLoading: isContestantsLoading } = useQuery<Contestant[]>({
+    queryKey: ["/api/contestants/visible"],
   });
 
   const judges = users.filter((user) => user.role === "judge");
@@ -123,52 +124,19 @@ export default function AdminJudges() {
     }
   };
 
-  const generateEmailFromName = (name: string) => {
-    const parts = name.trim().split(" ");
-    if (parts.length >= 2) {
-      const surname = parts[parts.length - 1];
-      const normalized = surname
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/\p{Diacritic}/gu, "");
-      return `${normalized}@husovka.cz`;
-    }
-    return "";
-  };
+  // Fetch votes per judge
+  useEffect(() => {
+    judges.forEach(async (judge) => {
+      try {
+        const votes: Vote[] = await apiRequest("GET", `/api/votes/user/${judge.id}`);
+        setVotesByJudge((prev) => ({ ...prev, [judge.id]: votes }));
+      } catch (e) {
+        console.error("Failed to fetch votes for judge", judge.id, e);
+      }
+    });
+  }, [users]);
 
-  const handleNameChange = (name: string) => {
-    const email = generateEmailFromName(name);
-    if (email) form.setValue("email", email);
-  };
-
-  // ---- nový fetch historie hlasování ----
-  const { data: votesHistory = [], isLoading: isVotesLoading } = useQuery<
-    { judge: UserType; votes: VoteWithContestant[] }[]
-  >(
-    ["votesHistory", judges],
-    async () => {
-      const allVotes = await Promise.all(
-        judges.map(async (judge) => {
-          const votes: Vote[] = await apiRequest("GET", `/api/votes/user/${judge.id}`);
-          // Pro každé hlasování přidáme jméno soutěžícího
-          const votesWithName: VoteWithContestant[] = await Promise.all(
-            votes.map(async (v) => {
-              const contestant: { name: string } = await apiRequest(
-                "GET",
-                `/api/contestants/${v.contestantId}`
-              );
-              return { ...v, contestantName: contestant.name };
-            })
-          );
-          return { judge, votes: votesWithName };
-        })
-      );
-      return allVotes;
-    },
-    { enabled: judges.length > 0 }
-  );
-
-  if (isUsersLoading || isVotesLoading)
+  if (isUsersLoading || isContestantsLoading)
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" />
@@ -210,6 +178,37 @@ export default function AdminJudges() {
       </CardContent>
     </Card>
   );
+
+  const renderVotesHistory = () => {
+    if (!judges.length) return <div>Žádní porotci</div>;
+
+    return judges.map((judge) => {
+      const votes = votesByJudge[judge.id] || [];
+      return (
+        <Card key={judge.id} className="bg-background">
+          <CardHeader>
+            <CardTitle>{judge.name}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {votes.length === 0 ? (
+              <div>Žádné hlasování zatím nebylo provedeno.</div>
+            ) : (
+              votes.map((v) => {
+                const contestant = contestants.find((c) => c.id === v.contestantId);
+                return (
+                  <div key={v.id} className="flex justify-between text-sm">
+                    <span>{contestant ? contestant.name : "Neznámý soutěžící"}</span>
+                    <span>{v.vote ? "👍" : "👎"}</span>
+                    <span>{new Date(v.createdAt).toLocaleString("cs-CZ")}</span>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+      );
+    });
+  };
 
   return (
     <div className="min-h-screen p-4 md:p-6 bg-background">
@@ -277,14 +276,7 @@ export default function AdminJudges() {
                           <FormItem>
                             <FormLabel>Jméno a příjmení</FormLabel>
                             <FormControl>
-                              <Input
-                                {...field}
-                                placeholder="Jan Novák"
-                                onChange={(e) => {
-                                  field.onChange(e);
-                                  handleNameChange(e.target.value);
-                                }}
-                              />
+                              <Input {...field} placeholder="Jan Novák" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -311,15 +303,11 @@ export default function AdminJudges() {
                             <FormLabel>Heslo</FormLabel>
                             <FormControl>
                               <div className="relative">
-                                <Input
-                                  {...field}
-                                  type={showPassword ? "text" : "password"}
-                                  placeholder="••••••••"
-                                />
+                                <Input {...field} type={showPassword ? "text" : "password"} placeholder="••••••••" />
                                 <button
                                   type="button"
                                   onClick={() => setShowPassword((prev) => !prev)}
-                                  className="absolute right-2 top-2 text-gray-500"
+                                  className="absolute right-2 top-2 text-sm"
                                 >
                                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
@@ -329,67 +317,21 @@ export default function AdminJudges() {
                           </FormItem>
                         )}
                       />
-                      <div className="flex justify-end gap-2 pt-2">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => {
-                            setIsCreateDialogOpen(false);
-                            setEditingUser(null);
-                            setCreateRole(null);
-                            form.reset();
-                          }}
-                        >
-                          Zrušit
-                        </Button>
-                        <Button
-                          type="submit"
-                          disabled={createUserMutation.isPending || updateUserMutation.isPending}
-                        >
-                          {createUserMutation.isPending || updateUserMutation.isPending ? (
-                            <LoadingSpinner size="sm" className="mr-2" />
-                          ) : (
-                            <Plus className="w-4 h-4 mr-2" />
-                          )}
-                          {editingUser ? "Upravit" : "Vytvořit"}
-                        </Button>
-                      </div>
+                      <Button type="submit">{editingUser ? "Upravit" : "Vytvořit"}</Button>
                     </form>
                   </Form>
                 </DialogContent>
               </Dialog>
             </CardHeader>
-            <CardContent className="space-y-4">{data.map((user) => renderUserCard(user, icon))}</CardContent>
+            <CardContent className="space-y-2">{data.map((user) => renderUserCard(user, icon))}</CardContent>
           </Card>
         ))}
 
-        {/* BOX: Historie hlasování porotců */}
         <Card>
           <CardHeader>
             <CardTitle>Historie hlasování porotců</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {votesHistory.length === 0 ? (
-              <p>Žádné hlasování zatím nebylo provedeno.</p>
-            ) : (
-              votesHistory.map(({ judge, votes }) => (
-                <div key={judge.id} className="border rounded p-2">
-                  <h4 className="font-semibold">{judge.name}</h4>
-                  {votes.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Žádné hlasování</p>
-                  ) : (
-                    <ul className="text-sm">
-                      {votes.map((v) => (
-                        <li key={v.id}>
-                          {v.vote ? "✅" : "❌"} {v.contestantName}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ))
-            )}
-          </CardContent>
+          <CardContent className="space-y-4">{renderVotesHistory()}</CardContent>
         </Card>
       </div>
     </div>

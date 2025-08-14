@@ -20,7 +20,6 @@ const userSchema = z.object({
   email: z.string().email("Neplatný email"),
   password: z.string().min(6, "Heslo musí mít alespoň 6 znaků"),
 });
-
 type UserForm = z.infer<typeof userSchema>;
 
 async function getJSON<T>(method: string, url: string, body?: any): Promise<T> {
@@ -33,7 +32,11 @@ export default function AdminJudges() {
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
   const [createRole, setCreateRole] = useState<"admin" | "judge" | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Filtry pro box historie
   const [selectedJudgeId, setSelectedJudgeId] = useState<string>("__ALL__");
+  const [selectedRoundId, setSelectedRoundId] = useState<string>("__ALL__");
+  const [selectedVoteKind, setSelectedVoteKind] = useState<"__ALL__" | "positive" | "negative">("__ALL__");
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -43,7 +46,6 @@ export default function AdminJudges() {
     queryKey: ["/api/users"],
     queryFn: () => getJSON<UserType[]>("GET", "/api/users"),
   });
-
   const judges = useMemo(() => users.filter((u) => u.role === "judge"), [users]);
   const admins = useMemo(() => users.filter((u) => u.role === "admin"), [users]);
   const judgeIds = useMemo(() => judges.map((j) => j.id), [judges]);
@@ -53,8 +55,12 @@ export default function AdminJudges() {
     queryKey: ["/api/rounds"],
     queryFn: () => getJSON<Round[]>("GET", "/api/rounds"),
   });
-
   const roundIds = useMemo(() => rounds.map((r) => r.id), [rounds]);
+  const roundsMap = useMemo(() => {
+    const m = new Map<string, Round>();
+    for (const r of rounds) m.set(r.id, r);
+    return m;
+  }, [rounds]);
 
   // --- CONTESTANTS (všichni přes rounds) ---
   const { data: contestants = [], isLoading: isContestantsLoading } = useQuery<Contestant[]>({
@@ -67,20 +73,21 @@ export default function AdminJudges() {
       return all.flat();
     },
   });
-
   const contestantsById = useMemo(() => {
-    const map = new Map<string, Contestant>();
-    for (const c of contestants) map.set(c.id, c);
-    return map;
+    const m = new Map<string, Contestant>();
+    for (const c of contestants) m.set(c.id, c);
+    return m;
   }, [contestants]);
 
-  // --- VOTES (podle porotců) ---
+  // --- VOTES (skrze /api/votes/user/:id pro každého porotce) ---
   type VoteEvent = {
     id: string;
     judgeId: string;
     judgeName: string;
     contestantId: string;
     contestantName: string;
+    roundId: string | null;
+    roundLabel: string; // např. "Kolo 2 – Finále" nebo jen číslo
     vote: boolean;
     createdAt: string | Date;
   };
@@ -90,10 +97,9 @@ export default function AdminJudges() {
     isLoading: isVotesLoading,
     refetch: refetchVotes,
   } = useQuery<VoteEvent[]>({
-    queryKey: ["/api/votes/byJudges", judgeIds, !!contestants.length],
-    enabled: judgeIds.length > 0 && contestants.length >= 0, // spustí se až po users; contestants můžou být prázdní, ale ready
+    queryKey: ["/api/votes/byJudges", judgeIds, contestants.length, rounds.length],
+    enabled: judgeIds.length > 0, // začne až když máme porotce
     queryFn: async () => {
-      // stáhnout hlasy pro každého porotce
       const perJudge = await Promise.all(
         judgeIds.map(async (jid) => {
           const votes = await getJSON<Vote[]>("GET", `/api/votes/user/${jid}`);
@@ -101,38 +107,61 @@ export default function AdminJudges() {
         })
       );
 
-      // zploštit + napojit jména soutěžících
       const events: VoteEvent[] = [];
       for (const { jid, votes } of perJudge) {
         const judgeName = judges.find((j) => j.id === jid)?.name ?? "Neznámý porotce";
         for (const v of votes) {
           const c = contestantsById.get(v.contestantId);
-          // zobrazíme jen hlasy na soutěžící, co existují v DB (měli by)
-          if (c) {
-            events.push({
-              id: v.id,
-              judgeId: jid,
-              judgeName,
-              contestantId: v.contestantId,
-              contestantName: c.name,
-              vote: v.vote,
-              createdAt: v.createdAt ?? new Date().toISOString(),
-            });
-          }
+          if (!c) continue;
+          const r = c.roundId ? roundsMap.get(c.roundId) : undefined;
+          const roundLabel = r
+            ? (r.roundNumber != null ? `Kolo ${r.roundNumber}${r.name ? ` – ${r.name}` : ""}` : (r.name ?? "Neznámé kolo"))
+            : "Neznámé kolo";
+          events.push({
+            id: v.id,
+            judgeId: jid,
+            judgeName,
+            contestantId: v.contestantId,
+            contestantName: c.name,
+            roundId: c.roundId ?? null,
+            roundLabel,
+            vote: Boolean(v.vote),
+            createdAt: v.createdAt ?? new Date().toISOString(),
+          });
         }
       }
 
-      // seřadit od nejnovějších
       events.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       return events;
     },
   });
 
-  const filteredEvents = useMemo(() => {
-    if (selectedJudgeId === "__ALL__") return voteEvents;
-    return voteEvents.filter((e) => e.judgeId === selectedJudgeId);
-  }, [voteEvents, selectedJudgeId]);
+  // Možnosti kol ve filtru: jen ta kola, která se vyskytují v eventech (aby to bylo praktické)
+  const availableRoundIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of voteEvents) if (e.roundId) set.add(e.roundId);
+    return Array.from(set);
+  }, [voteEvents]);
 
+  const filteredEvents = useMemo(() => {
+    let list = voteEvents;
+
+    if (selectedJudgeId !== "__ALL__") {
+      list = list.filter((e) => e.judgeId === selectedJudgeId);
+    }
+
+    if (selectedRoundId !== "__ALL__") {
+      list = list.filter((e) => e.roundId === selectedRoundId);
+    }
+
+    if (selectedVoteKind !== "__ALL__") {
+      list = list.filter((e) => (selectedVoteKind === "positive" ? e.vote === true : e.vote === false));
+    }
+
+    return list;
+  }, [voteEvents, selectedJudgeId, selectedRoundId, selectedVoteKind]);
+
+  // --- Form + mutace uživatelů ---
   const form = useForm<UserForm>({
     resolver: zodResolver(userSchema),
     defaultValues: { name: "", email: "", password: "" },
@@ -146,7 +175,6 @@ export default function AdminJudges() {
       setCreateRole(null);
       form.reset();
       toast({ title: "Uživatel vytvořen", description: "Účet byl přidán." });
-      // po změně userů můžeme přenačíst i hlasy (nový porotce atd.)
       refetchVotes();
     },
     onError: (error: any) => {
@@ -213,10 +241,7 @@ export default function AdminJudges() {
     const parts = name.trim().split(" ");
     if (parts.length >= 2) {
       const surname = parts[parts.length - 1];
-      const normalized = surname
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/\p{Diacritic}/gu, "");
+      const normalized = surname.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
       return `${normalized}@husovka.cz`;
     }
     return "";
@@ -226,9 +251,7 @@ export default function AdminJudges() {
     <Card key={user.id} className="bg-background">
       <CardContent className="p-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
-            {labelIcon}
-          </div>
+          <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">{labelIcon}</div>
           <div className="flex-1 text-center sm:text-left">
             <h3 className="font-semibold text-secondary">{user.name}</h3>
             <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-secondary/75">
@@ -238,8 +261,7 @@ export default function AdminJudges() {
           </div>
           <div className="text-center sm:text-right">
             <div className="text-sm text-secondary/75">
-              Vytvořen:{" "}
-              {user.createdAt ? new Date(user.createdAt).toLocaleDateString("cs-CZ") : "Neznámo"}
+              Vytvořen: {user.createdAt ? new Date(user.createdAt).toLocaleDateString("cs-CZ") : "Neznámo"}
             </div>
             <div className="text-xs text-success">Aktivní</div>
           </div>
@@ -278,7 +300,7 @@ export default function AdminJudges() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto space-y-8">
+      <div className="max-w-5xl mx-auto space-y-8">
         {[
           { title: "Porotci", data: judges, icon: <User className="text-white w-6 h-6" />, role: "judge" },
           { title: "Admini", data: admins, icon: <Shield className="text-white w-6 h-6" />, role: "admin" },
@@ -314,9 +336,7 @@ export default function AdminJudges() {
                 </DialogTrigger>
                 <DialogContent className="max-w-sm">
                   <DialogHeader>
-                    <DialogTitle>
-                      {editingUser ? "Upravit účet" : `Vytvořit ${title.toLowerCase()}`}
-                    </DialogTitle>
+                    <DialogTitle>{editingUser ? "Upravit účet" : `Vytvořit ${title.toLowerCase()}`}</DialogTitle>
                   </DialogHeader>
                   <Form {...form}>
                     <form
@@ -365,11 +385,7 @@ export default function AdminJudges() {
                             <FormLabel>Heslo</FormLabel>
                             <FormControl>
                               <div className="relative">
-                                <Input
-                                  {...field}
-                                  type={showPassword ? "text" : "password"}
-                                  placeholder="••••••••"
-                                />
+                                <Input {...field} type={showPassword ? "text" : "password"} placeholder="••••••••" />
                                 <button
                                   type="button"
                                   onClick={() => setShowPassword((prev) => !prev)}
@@ -416,27 +432,69 @@ export default function AdminJudges() {
 
         {/* BOX: Historie hlasování porotců */}
         <Card>
-          <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <CardTitle>Historie hlasování porotců</CardTitle>
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-muted-foreground">Filtrovat porotce:</label>
-              <select
-                className="border rounded px-2 py-1 text-sm bg-background"
-                value={selectedJudgeId}
-                onChange={(e) => setSelectedJudgeId(e.target.value)}
-              >
-                <option value="__ALL__">Všichni</option>
-                {judges.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.name}
-                  </option>
-                ))}
-              </select>
+          <CardHeader className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <CardTitle>Historie hlasování porotců</CardTitle>
+            </div>
+
+            {/* Filtrovací lišta */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground whitespace-nowrap">Porotce:</label>
+                <select
+                  className="border rounded px-2 py-1 text-sm bg-background w-full"
+                  value={selectedJudgeId}
+                  onChange={(e) => setSelectedJudgeId(e.target.value)}
+                >
+                  <option value="__ALL__">Všichni</option>
+                  {judges.map((j) => (
+                    <option key={j.id} value={j.id}>
+                      {j.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground whitespace-nowrap">Kolo:</label>
+                <select
+                  className="border rounded px-2 py-1 text-sm bg-background w-full"
+                  value={selectedRoundId}
+                  onChange={(e) => setSelectedRoundId(e.target.value)}
+                >
+                  <option value="__ALL__">Všechna</option>
+                  {availableRoundIds.map((rid) => {
+                    const r = roundsMap.get(rid);
+                    const label = r
+                      ? (r.roundNumber != null ? `Kolo ${r.roundNumber}${r.name ? ` – ${r.name}` : ""}` : (r.name ?? rid))
+                      : rid;
+                    return (
+                      <option key={rid} value={rid}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-muted-foreground whitespace-nowrap">Hlas:</label>
+                <select
+                  className="border rounded px-2 py-1 text-sm bg-background w-full"
+                  value={selectedVoteKind}
+                  onChange={(e) => setSelectedVoteKind(e.target.value as any)}
+                >
+                  <option value="__ALL__">Vše</option>
+                  <option value="positive">Pozitivní (👍)</option>
+                  <option value="negative">Negativní (👎)</option>
+                </select>
+              </div>
             </div>
           </CardHeader>
+
           <CardContent>
             {filteredEvents.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Zatím žádné hlasy.</div>
+              <div className="text-sm text-muted-foreground">Nic tu není. Změň filtr nebo ještě nikdo nehlasoval.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -445,6 +503,7 @@ export default function AdminJudges() {
                       <th className="py-2 pr-4">Datum / čas</th>
                       <th className="py-2 pr-4">Porotce</th>
                       <th className="py-2 pr-4">Soutěžící</th>
+                      <th className="py-2 pr-4">Kolo</th>
                       <th className="py-2 pr-4">Hlas</th>
                     </tr>
                   </thead>
@@ -454,6 +513,7 @@ export default function AdminJudges() {
                         <td className="py-2 pr-4">{new Date(e.createdAt).toLocaleString("cs-CZ")}</td>
                         <td className="py-2 pr-4">{e.judgeName}</td>
                         <td className="py-2 pr-4">{e.contestantName}</td>
+                        <td className="py-2 pr-4">{e.roundLabel}</td>
                         <td className="py-2 pr-4">{e.vote ? "👍" : "👎"}</td>
                       </tr>
                     ))}

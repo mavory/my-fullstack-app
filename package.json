@@ -80,7 +80,8 @@
     "zod": "^3.24.2",
     "zod-validation-error": "^3.4.0",
     "jspdf": "^2.5.1",
-    "jspdf-autotable": "^3.8.1"
+    "jspdf-autotable": "^3.8.1",
+    "papaparse": "^5.4.1"
 
   },
   "devDependencies": {

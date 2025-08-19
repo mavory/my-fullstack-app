@@ -190,6 +190,24 @@ export default function AdminJudges() {
     },
   });
 
+  // --- NEW: allowed deletion emails + current user query ---
+  const ALLOWED_DELETION_EMAILS = useMemo(
+    () => new Set(["admin@husovka.cz".toLowerCase(), "organizace@husovka.cz".toLowerCase()]),
+    []
+  );
+
+  const { data: currentUser = null, isLoading: isCurrentUserLoading } = useQuery<UserType | null>({
+    queryKey: ["/api/auth/me"],
+    queryFn: async () => {
+      try {
+        return await getJSON<UserType | null>("GET", "/api/auth/me");
+      } catch {
+        return null;
+      }
+    },
+  });
+  // --------------------------------------------------------
+
   const handleCreateUser = (data: UserForm) => {
     if (!createRole) return;
     createUserMutation.mutate({ ...data, role: createRole });
@@ -208,7 +226,18 @@ export default function AdminJudges() {
     }
   };
 
-  const handleDeleteUser = (id: string) => {
+  // Modified: check permissions before attempting deletion
+  const handleDeleteUser = (id: string, targetUserEmail?: string) => {
+    const userEmailLower = (currentUser?.email ?? "").toLowerCase();
+    const allowed = currentUser && ALLOWED_DELETION_EMAILS.has(userEmailLower);
+
+    if (!allowed) {
+      toast({ title: "Bez oprávnění", description: "Tento účet nemůže mazat účty.", variant: "destructive" });
+      return;
+    }
+
+    // Optional safety: prevent deleting last admin? (not requested) - skipping to keep minimal changes
+
     if (confirm("Opravdu chcete smazat tento účet?")) deleteUserMutation.mutate(id);
   };
 
@@ -222,92 +251,100 @@ export default function AdminJudges() {
     return "";
   };
 
-  const renderUserCard = (user: UserType, labelIcon: React.ReactNode) => (
-    <Card key={user.id} className="bg-background">
-      <CardContent className="p-4">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">{labelIcon}</div>
-          <div className="flex-1 text-center sm:text-left">
-            <h3 className="font-semibold text-secondary">{user.name}</h3>
-            <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-secondary/75">
-              <Mail className="w-4 h-4" />
-              {user.email}
+  const renderUserCard = (user: UserType, labelIcon: React.ReactNode) => {
+    const canDelete = Boolean(currentUser && ALLOWED_DELETION_EMAILS.has((currentUser.email ?? "").toLowerCase()));
+    return (
+      <Card key={user.id} className="bg-background">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">{labelIcon}</div>
+            <div className="flex-1 text-center sm:text-left">
+              <h3 className="font-semibold text-secondary">{user.name}</h3>
+              <div className="flex items-center justify-center sm:justify-start gap-1 text-sm text-secondary/75">
+                <Mail className="w-4 h-4" />
+                {user.email}
+              </div>
+            </div>
+            <div className="text-center sm:text-right">
+              <div className="text-sm text-secondary/75">
+                Vytvořen: {user.createdAt ? new Date(user.createdAt).toLocaleDateString("cs-CZ") : "Neznámo"}
+              </div>
+              <div className="text-xs text-success">Aktivní</div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
+                <Edit className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDeleteUser(user.id, user.email)}
+                disabled={!canDelete || deleteUserMutation.isLoading}
+                title={!canDelete ? "Nemáš oprávnění mazat účty" : "Smazat účet"}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
             </div>
           </div>
-          <div className="text-center sm:text-right">
-            <div className="text-sm text-secondary/75">
-              Vytvořen: {user.createdAt ? new Date(user.createdAt).toLocaleDateString("cs-CZ") : "Neznámo"}
-            </div>
-            <div className="text-xs text-success">Aktivní</div>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
-              <Edit className="w-4 h-4" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleDeleteUser(user.id)}>
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
-const removeDiacritics = (str) => {
-  return str
-    .normalize("NFD")                   // rozdělí diakritiku
-    .replace(/[\u0300-\u036f]/g, "");   // smaže diakritiku
-};
+  const removeDiacritics = (str) => {
+    return str
+      .normalize("NFD") // rozdělí diakritiku
+      .replace(/[\u0300-\u036f]/g, ""); // smaže diakritiku
+  };
 
-const exportPDF = () => {
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
-  doc.setFont("helvetica");
+  const exportPDF = () => {
+    const doc = new jsPDF({ unit: "pt", format: "a4" });
+    doc.setFont("helvetica");
 
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const title = "Judges' Voting History";
-  const exportedAt = `Exported: ${new Date().toLocaleString("cs-CZ")}`;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const title = "Judges' Voting History";
+    const exportedAt = `Exported: ${new Date().toLocaleString("cs-CZ")}`;
 
-  // Header
-  doc.setFontSize(16);
-  doc.setFont(undefined, "bold");
-  doc.text(title, 40, 40);
-  doc.setFontSize(10);
-  doc.setFont(undefined, "normal");
-  doc.text(exportedAt, 40, 58);
+    // Header
+    doc.setFontSize(16);
+    doc.setFont(undefined, "bold");
+    doc.text(title, 40, 40);
+    doc.setFontSize(10);
+    doc.setFont(undefined, "normal");
+    doc.text(exportedAt, 40, 58);
 
-  // Tabulka
-  const head = [["Date/Time", "Judge", "Contestant", "Round", "Vote"]];
-  const body = filteredEvents.map((e) => [
-    new Date(e.createdAt).toLocaleString("cs-CZ"),
-    removeDiacritics(e.judgeName),
-    removeDiacritics(e.contestantName),
-    removeDiacritics(e.roundLabel),
-    e.vote ? "Pozitivni" : "Negativni",
-  ]);
+    // Tabulka
+    const head = [["Date/Time", "Judge", "Contestant", "Round", "Vote"]];
+    const body = filteredEvents.map((e) => [
+      new Date(e.createdAt).toLocaleString("cs-CZ"),
+      removeDiacritics(e.judgeName),
+      removeDiacritics(e.contestantName),
+      removeDiacritics(e.roundLabel),
+      e.vote ? "Pozitivni" : "Negativni",
+    ]);
 
-  autoTable(doc, {
-    head,
-    body,
-    startY: 70,
-    styles: { font: "helvetica", fontSize: 9, cellPadding: 6 },
-    headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
-    margin: { left: 40, right: 40 },
-  });
+    autoTable(doc, {
+      head,
+      body,
+      startY: 70,
+      styles: { font: "helvetica", fontSize: 9, cellPadding: 6 },
+      headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: "bold" },
+      margin: { left: 40, right: 40 },
+    });
 
-  // Footer
-  const pageCount = doc.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(9);
-    doc.text(`Strana ${i} / ${pageCount}`, pageWidth - 80, pageHeight - 20);
-  }
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(9);
+      doc.text(`Strana ${i} / ${pageCount}`, pageWidth - 80, pageHeight - 20);
+    }
 
-  doc.save(`hlasovani_${Date.now()}.pdf`);
-};
+    doc.save(`hlasovani_${Date.now()}.pdf`);
+  };
 
-
-  if (isUsersLoading || isRoundsLoading || isContestantsLoading || isVotesLoading) {
+  if (isUsersLoading || isRoundsLoading || isContestantsLoading || isVotesLoading || isCurrentUserLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner size="lg" />
@@ -518,8 +555,8 @@ const exportPDF = () => {
                   onChange={(e) => setSelectedVoteKind(e.target.value as any)}
                 >
                   <option value="__ALL__">Vše</option>
-                  <option value="positive">Pozitivní (👍)</option>
-                  <option value="negative">Negativní (👎)</option>
+                  <option value="positive">Pozitivní (✅)</option>
+                  <option value="negative">Negativní (❌)</option>
                 </select>
               </div>
             </div>
@@ -547,7 +584,7 @@ const exportPDF = () => {
                         <td className="py-2 pr-4">{e.judgeName}</td>
                         <td className="py-2 pr-4">{e.contestantName}</td>
                         <td className="py-2 pr-4">{e.roundLabel}</td>
-                        <td className="py-2 pr-4">{e.vote ? "👍" : "👎"}</td>
+                        <td className="py-2 pr-4">{e.vote ? "✅" : "❌"}</td>
                       </tr>
                     ))}
                   </tbody>

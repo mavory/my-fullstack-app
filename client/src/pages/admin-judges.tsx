@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ArrowLeft, Plus, Mail, User, Edit, Trash2, Shield, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Plus, Mail, User, Edit, Trash2, Shield, Eye, EyeOff, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -233,6 +233,7 @@ export default function AdminJudges() {
   };
 
   const currentUserEmail = extractEmailFromCurrentUser(currentUserRaw);
+  const canCurrentUserManage = Boolean(currentUserEmail && ALLOWED_DELETION_EMAILS.has(currentUserEmail));
   // --------------------------------------------------------
 
   const handleCreateUser = (data: UserForm) => {
@@ -240,7 +241,12 @@ export default function AdminJudges() {
     createUserMutation.mutate({ ...data, role: createRole });
   };
 
+  // Modified: check permissions before allowing to open edit dialog
   const handleEditUser = (user: UserType) => {
+    if (!canCurrentUserManage) {
+      toast({ title: "Bez oprávnění", description: "Tento účet nemůže upravovat účty.", variant: "destructive" });
+      return;
+    }
     setEditingUser(user);
     setShowPassword(false);
     form.reset({ name: user.name, email: user.email, password: "" });
@@ -255,7 +261,7 @@ export default function AdminJudges() {
 
   // Modified: check permissions before attempting deletion (uses robust email extraction)
   const handleDeleteUser = (id: string, targetUserEmail?: string) => {
-    const allowed = currentUserEmail && ALLOWED_DELETION_EMAILS.has(currentUserEmail);
+    const allowed = canCurrentUserManage;
 
     if (!allowed) {
       toast({ title: "Bez oprávnění", description: "Tento účet nemůže mazat účty.", variant: "destructive" });
@@ -276,7 +282,7 @@ export default function AdminJudges() {
   };
 
   const renderUserCard = (user: UserType, labelIcon: React.ReactNode) => {
-    const canDelete = Boolean(currentUserEmail && ALLOWED_DELETION_EMAILS.has(currentUserEmail));
+    const canManage = canCurrentUserManage;
     return (
       <Card key={user.id} className="bg-background">
         <CardContent className="p-4">
@@ -296,15 +302,21 @@ export default function AdminJudges() {
               <div className="text-xs text-success">Aktivní</div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => handleEditUser(user)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleEditUser(user)}
+                disabled={!canManage || updateUserMutation.isLoading}
+                title={!canManage ? "Nemáš oprávnění upravovat účty" : "Upravit účet"}
+              >
                 <Edit className="w-4 h-4" />
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => handleDeleteUser(user.id, user.email)}
-                disabled={!canDelete || deleteUserMutation.isLoading}
-                title={!canDelete ? "Nemáš oprávnění mazat účty" : "Smazat účet"}
+                disabled={!canManage || deleteUserMutation.isLoading}
+                title={!canManage ? "Nemáš oprávnění mazat účty" : "Smazat účet"}
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
@@ -416,9 +428,19 @@ export default function AdminJudges() {
                   <Button
                     size="sm"
                     onClick={() => {
+                      if (!canCurrentUserManage) {
+                        toast({
+                          title: "Bez oprávnění",
+                          description: "Tento účet nemůže vytvářet nové účty.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
                       setIsCreateDialogOpen(true);
                       setCreateRole(role as "admin" | "judge");
                     }}
+                    disabled={!canCurrentUserManage}
+                    title={!canCurrentUserManage ? "Nemáš oprávnění vytvářet účty" : `Nový ${role}`}
                   >
                     <Plus className="w-4 h-4 mr-2" />
                     Nový {role}
@@ -502,7 +524,14 @@ export default function AdminJudges() {
                         >
                           Zrušit
                         </Button>
-                        <Button type="submit" disabled={createUserMutation.isLoading || updateUserMutation.isLoading}>
+                        <Button
+                          type="submit"
+                          disabled={
+                            createUserMutation.isLoading ||
+                            updateUserMutation.isLoading ||
+                            !canCurrentUserManage
+                          }
+                        >
                           {createUserMutation.isLoading || updateUserMutation.isLoading ? (
                             <LoadingSpinner size="sm" className="mr-2" />
                           ) : (
@@ -608,7 +637,9 @@ export default function AdminJudges() {
                         <td className="py-2 pr-4">{e.judgeName}</td>
                         <td className="py-2 pr-4">{e.contestantName}</td>
                         <td className="py-2 pr-4">{e.roundLabel}</td>
-                        <td className="py-2 pr-4">{e.vote ? "👍" : "👎"}</td>
+                        <td className="py-2 pr-4" title={e.vote ? "Pozitivní" : "Negativní"}>
+                          {e.vote ? <ThumbsUp className="w-5 h-5" /> : <ThumbsDown className="w-5 h-5" />}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

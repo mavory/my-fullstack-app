@@ -190,22 +190,49 @@ export default function AdminJudges() {
     },
   });
 
-  // --- NEW: allowed deletion emails + current user query ---
+  // --- NEW: allowed deletion emails + current user query + robust extractor ---
   const ALLOWED_DELETION_EMAILS = useMemo(
     () => new Set(["admin@husovka.cz".toLowerCase(), "organizace@husovka.cz".toLowerCase()]),
     []
   );
 
-  const { data: currentUser = null, isLoading: isCurrentUserLoading } = useQuery<UserType | null>({
+  const { data: currentUserRaw = null, isLoading: isCurrentUserLoading } = useQuery<any | null>({
     queryKey: ["/api/auth/me"],
     queryFn: async () => {
       try {
-        return await getJSON<UserType | null>("GET", "/api/auth/me");
+        return await getJSON<any>("GET", "/api/auth/me");
       } catch {
         return null;
       }
     },
   });
+
+  // helper: try to extract an email string from various possible response shapes
+  const extractEmailFromCurrentUser = (u: any): string => {
+    if (!u) return "";
+    const candidates = [
+      u.email,
+      u.user?.email,
+      u.data?.email,
+      u.data?.user?.email,
+      u.attributes?.email,
+      u.emailAddress,
+    ];
+    for (const c of candidates) {
+      if (typeof c === "string" && c.trim()) return c.trim().toLowerCase();
+    }
+    // sometimes the API returns { user: { ... } } as top-level, so try deeper
+    try {
+      const jsonStr = JSON.stringify(u);
+      const match = jsonStr.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+      if (match) return match[0].toLowerCase();
+    } catch {
+      /* ignore */
+    }
+    return "";
+  };
+
+  const currentUserEmail = extractEmailFromCurrentUser(currentUserRaw);
   // --------------------------------------------------------
 
   const handleCreateUser = (data: UserForm) => {
@@ -226,17 +253,14 @@ export default function AdminJudges() {
     }
   };
 
-  // Modified: check permissions before attempting deletion
+  // Modified: check permissions before attempting deletion (uses robust email extraction)
   const handleDeleteUser = (id: string, targetUserEmail?: string) => {
-    const userEmailLower = (currentUser?.email ?? "").toLowerCase();
-    const allowed = currentUser && ALLOWED_DELETION_EMAILS.has(userEmailLower);
+    const allowed = currentUserEmail && ALLOWED_DELETION_EMAILS.has(currentUserEmail);
 
     if (!allowed) {
       toast({ title: "Bez oprávnění", description: "Tento účet nemůže mazat účty.", variant: "destructive" });
       return;
     }
-
-    // Optional safety: prevent deleting last admin? (not requested) - skipping to keep minimal changes
 
     if (confirm("Opravdu chcete smazat tento účet?")) deleteUserMutation.mutate(id);
   };
@@ -252,7 +276,7 @@ export default function AdminJudges() {
   };
 
   const renderUserCard = (user: UserType, labelIcon: React.ReactNode) => {
-    const canDelete = Boolean(currentUser && ALLOWED_DELETION_EMAILS.has((currentUser.email ?? "").toLowerCase()));
+    const canDelete = Boolean(currentUserEmail && ALLOWED_DELETION_EMAILS.has(currentUserEmail));
     return (
       <Card key={user.id} className="bg-background">
         <CardContent className="p-4">
@@ -555,8 +579,8 @@ export default function AdminJudges() {
                   onChange={(e) => setSelectedVoteKind(e.target.value as any)}
                 >
                   <option value="__ALL__">Vše</option>
-                  <option value="positive">Pozitivní (✅)</option>
-                  <option value="negative">Negativní (❌)</option>
+                  <option value="positive">Pozitivní (👍)</option>
+                  <option value="negative">Negativní (👎)</option>
                 </select>
               </div>
             </div>
@@ -584,7 +608,7 @@ export default function AdminJudges() {
                         <td className="py-2 pr-4">{e.judgeName}</td>
                         <td className="py-2 pr-4">{e.contestantName}</td>
                         <td className="py-2 pr-4">{e.roundLabel}</td>
-                        <td className="py-2 pr-4">{e.vote ? "✅" : "❌"}</td>
+                        <td className="py-2 pr-4">{e.vote ? "👍" : "👎"}</td>
                       </tr>
                     ))}
                   </tbody>

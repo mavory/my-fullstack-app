@@ -20,14 +20,11 @@ export default function AdminResults() {
     queryKey: ["/api/users"],
   });
 
-  // fullscreen API
   useEffect(() => {
     if (isAudienceMode) {
       document.documentElement.requestFullscreen?.();
-    } else {
-      if (document.fullscreenElement) {
-        document.exitFullscreen?.();
-      }
+    } else if (document.fullscreenElement) {
+      document.exitFullscreen?.();
     }
   }, [isAudienceMode]);
 
@@ -42,9 +39,7 @@ export default function AdminResults() {
   const activeRound = rounds.find((r) => r.isActive);
 
   let roundsToShow: Round[] = [];
-
   if (isAudienceMode) {
-    // v audience módu zobrazíme to, co bylo zvoleno při vstupu
     roundsToShow = audienceShowAllRounds ? rounds : activeRound ? [activeRound] : [];
   } else if (showAllRounds) {
     roundsToShow = rounds;
@@ -54,10 +49,8 @@ export default function AdminResults() {
 
   const judges = allUsers.filter((user) => user.role === "judge");
 
-  // handler pro kliknutí na očíčko
   const handleToggleAudience = () => {
     if (!isAudienceMode) {
-      // ukládáme, jestli jsme byli ve všech nebo jen v aktivním kole
       setAudienceShowAllRounds(showAllRounds);
     }
     setIsAudienceMode((prev) => !prev);
@@ -65,7 +58,6 @@ export default function AdminResults() {
 
   return (
     <div className="min-h-screen bg-background px-4 py-6 sm:px-6 lg:px-8 overflow-x-hidden">
-      {/* Header */}
       <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
         {!isAudienceMode && (
           <div className="flex items-center gap-3">
@@ -79,15 +71,12 @@ export default function AdminResults() {
                 Online výsledky hlasování
               </h1>
               <p className="text-sm sm:text-base text-secondary/75 truncate">
-                {activeRound
-                  ? `Aktivní kolo: ${activeRound.name}`
-                  : "Žádné aktivní kolo"}
+                {activeRound ? `Aktivní kolo: ${activeRound.name}` : "Žádné aktivní kolo"}
               </p>
             </div>
           </div>
         )}
 
-        {/* Přepínače */}
         <div className="flex gap-2">
           {!isAudienceMode && (
             <Button
@@ -119,14 +108,11 @@ export default function AdminResults() {
         </div>
       </div>
 
-      {/* Výsledky */}
       {roundsToShow.length === 0 ? (
         !isAudienceMode && (
           <div className="text-center mt-8">
             <p className="text-lg text-secondary/75">
-              {showAllRounds
-                ? "Nejsou k dispozici žádná kola"
-                : "Momentálně není aktivní žádné kolo"}
+              {showAllRounds ? "Nejsou k dispozici žádná kola" : "Momentálně není aktivní žádné kolo"}
             </p>
           </div>
         )
@@ -160,6 +146,9 @@ function RoundResults({ round, judges }: { round: Round; judges: UserType[] }) {
     );
   }
 
+  // 🟩 TADY: filtrujeme jen soutěžící, kteří jsou aktuálně viditelní pro porotce
+  const visibleContestants = contestants.filter((c) => c.isVisibleToJudges);
+
   return (
     <Card>
       <CardHeader>
@@ -170,21 +159,15 @@ function RoundResults({ round, judges }: { round: Round; judges: UserType[] }) {
       </CardHeader>
       <CardContent>
         <div className="text-sm text-secondary/75 mb-4">
-          Celkem porotců: {judges.length} | Soutěžících: {contestants.length}
+          Celkem porotců: {judges.length} | Zobrazení soutěžící: {visibleContestants.length}
         </div>
 
-        {contestants.length === 0 ? (
-          <p className="text-secondary/75">
-            V tomto kole nejsou žádní soutěžící
-          </p>
+        {visibleContestants.length === 0 ? (
+          <p className="text-secondary/75">V tomto kole nejsou aktuálně žádní viditelní soutěžící</p>
         ) : (
           <div className="space-y-4">
-            {contestants.map((contestant) => (
-              <ContestantResultCard
-                key={contestant.id}
-                contestant={contestant}
-                totalJudges={judges.length}
-              />
+            {visibleContestants.map((contestant) => (
+              <ContestantResultCard key={contestant.id} contestant={contestant} totalJudges={judges.length} />
             ))}
           </div>
         )}
@@ -207,8 +190,7 @@ function ContestantResultCard({
   const positiveVotes = votes.filter((v) => v.vote === true).length;
   const negativeVotes = votes.filter((v) => v.vote === false).length;
   const totalVotes = votes.length;
-  const percentage =
-    totalJudges > 0 ? Math.round((positiveVotes / totalJudges) * 100) : 0;
+  const percentage = totalJudges > 0 ? Math.round((positiveVotes / totalJudges) * 100) : 0;
 
   return (
     <Card>
@@ -219,12 +201,9 @@ function ContestantResultCard({
               <User className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
             </div>
             <div className="min-w-0">
-              <div className="font-semibold text-secondary truncate">
-                {contestant.name}
-              </div>
+              <div className="font-semibold text-secondary truncate">{contestant.name}</div>
               <div className="text-xs sm:text-sm text-secondary/75 truncate">
-                {contestant.className} • {contestant.age} let •{" "}
-                {contestant.category}
+                {contestant.className} • {contestant.age} let • {contestant.category}
               </div>
             </div>
           </div>
@@ -233,9 +212,7 @@ function ContestantResultCard({
             <div>
               <div className="flex items-center justify-center gap-1 mb-1">
                 <Check className="w-4 h-4 text-success" />
-                <span className="text-base sm:text-lg font-bold text-success">
-                  {positiveVotes}
-                </span>
+                <span className="text-base sm:text-lg font-bold text-success">{positiveVotes}</span>
               </div>
               <div className="text-xs text-secondary/75">Pozitivní</div>
             </div>
@@ -243,17 +220,13 @@ function ContestantResultCard({
             <div>
               <div className="flex items-center justify-center gap-1 mb-1">
                 <X className="w-4 h-4 text-destructive" />
-                <span className="text-base sm:text-lg font-bold text-destructive">
-                  {negativeVotes}
-                </span>
+                <span className="text-base sm:text-lg font-bold text-destructive">{negativeVotes}</span>
               </div>
               <div className="text-xs text-secondary/75">Negativní</div>
             </div>
 
             <div>
-              <div className="text-base sm:text-lg font-bold text-primary">
-                {percentage}%
-              </div>
+              <div className="text-base sm:text-lg font-bold text-primary">{percentage}%</div>
               <div className="text-xs text-secondary/75">Úspěšnost</div>
             </div>
 

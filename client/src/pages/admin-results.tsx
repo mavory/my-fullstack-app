@@ -119,7 +119,7 @@ export default function AdminResults() {
       ) : (
         <div className="grid gap-6 max-w-6xl mx-auto">
           {roundsToShow.map((round) => (
-            <RoundResults key={round.id} round={round} judges={judges} showAllRounds={showAllRounds} />
+            <RoundResults key={round.id} round={round} judges={judges} isAudienceMode={isAudienceMode} showAllRounds={showAllRounds}/>
           ))}
         </div>
       )}
@@ -127,7 +127,7 @@ export default function AdminResults() {
   );
 }
 
-function RoundResults({ round, judges, showAllRounds }: { round: Round; judges: UserType[]; showAllRounds: boolean }) {
+function RoundResults({ round, judges, isAudienceMode, showAllRounds }: { round: Round; judges: UserType[], isAudienceMode: boolean, showAllRounds: boolean }) {
   const { data: contestants = [], isLoading } = useQuery<Contestant[]>({
     queryKey: ["/api/contestants/round", round.id],
     enabled: !!round.id,
@@ -146,8 +146,8 @@ function RoundResults({ round, judges, showAllRounds }: { round: Round; judges: 
     );
   }
 
-  // Pokud zobrazujeme všechna kola, zobrazíme všechny soutěžící
-  const displayedContestants = showAllRounds ? contestants : contestants.filter((c) => c.isVisibleToJudges);
+  // filtrujeme jen soutěžící viditelné pro porotce jen pokud není showAllRounds
+  const visibleContestants = showAllRounds ? contestants : contestants.filter(c => c.isVisibleToJudges);
 
   return (
     <Card>
@@ -159,19 +159,20 @@ function RoundResults({ round, judges, showAllRounds }: { round: Round; judges: 
       </CardHeader>
       <CardContent>
         <div className="text-sm text-secondary/75 mb-4">
-          Celkem porotců: {judges.length} | Zobrazení soutěžící: {displayedContestants.length}
+          Celkem porotců: {judges.length} | Zobrazení soutěžící: {visibleContestants.length}
         </div>
 
-        {displayedContestants.length === 0 ? (
-          <p className="text-secondary/75">V tomto kole nejsou žádní soutěžící</p>
+        {visibleContestants.length === 0 ? (
+          <p className="text-secondary/75">V tomto kole nejsou aktuálně žádní viditelní soutěžící</p>
         ) : (
           <div className="space-y-4">
-            {displayedContestants.map((contestant) => (
-              <ContestantResultCard
-                key={contestant.id}
-                contestant={contestant}
-                judges={judges}
-                showAllRounds={showAllRounds}
+            {visibleContestants.map((contestant) => (
+              <ContestantResultCard 
+                key={contestant.id} 
+                contestant={contestant} 
+                totalJudges={judges.length} 
+                judges={judges} 
+                isAudienceMode={isAudienceMode}
               />
             ))}
           </div>
@@ -183,12 +184,14 @@ function RoundResults({ round, judges, showAllRounds }: { round: Round; judges: 
 
 function ContestantResultCard({
   contestant,
+  totalJudges,
   judges,
-  showAllRounds,
+  isAudienceMode,
 }: {
   contestant: Contestant;
+  totalJudges: number;
   judges: UserType[];
-  showAllRounds: boolean;
+  isAudienceMode: boolean;
 }) {
   const { data: votes = [] } = useQuery<Vote[]>({
     queryKey: ["/api/votes/contestant", contestant.id],
@@ -197,78 +200,73 @@ function ContestantResultCard({
   const positiveVotes = votes.filter((v) => v.vote === true).length;
   const negativeVotes = votes.filter((v) => v.vote === false).length;
   const totalVotes = votes.length;
-  const percentage = judges.length > 0 ? Math.round((positiveVotes / judges.length) * 100) : 0;
+  const percentage = totalJudges > 0 ? Math.round((positiveVotes / totalJudges) * 100) : 0;
+
+  // Velikost karty pro audience módu
+  const cardClass = isAudienceMode ? "p-8 text-xl sm:text-3xl" : "p-4";
 
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-200 rounded-full flex items-center justify-center shrink-0">
-              <User className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
+    <Card className={isAudienceMode ? "max-w-4xl mx-auto" : ""}>
+      <CardContent className={cardClass}>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-6">
+          <div className="flex items-center gap-4">
+            <div className={isAudienceMode ? "w-20 h-20 sm:w-28 sm:h-28 bg-gray-200 rounded-full flex items-center justify-center shrink-0" : "w-10 h-10 sm:w-12 sm:h-12 bg-gray-200 rounded-full flex items-center justify-center shrink-0"}>
+              <User className={isAudienceMode ? "w-10 h-10 sm:w-16 sm:h-16 text-gray-400" : "w-5 h-5 sm:w-6 sm:h-6 text-gray-400"} />
             </div>
             <div className="min-w-0">
-              <div className="font-semibold text-secondary truncate">{contestant.name}</div>
-              <div className="text-xs sm:text-sm text-secondary/75 truncate">
+              <div className={isAudienceMode ? "font-bold text-3xl text-secondary truncate" : "font-semibold text-secondary truncate"}>
+                {contestant.name}
+              </div>
+              <div className={isAudienceMode ? "text-lg text-secondary/75 truncate" : "text-xs sm:text-sm text-secondary/75 truncate"}>
                 {contestant.className} • {contestant.age} let • {contestant.category}
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:flex sm:gap-6 gap-4 text-center w-full sm:w-auto">
+          <div className={isAudienceMode ? "grid grid-cols-5 gap-8 text-center w-full sm:w-auto mt-6" : "grid grid-cols-2 sm:flex sm:gap-6 gap-4 text-center w-full sm:w-auto mt-0"}>
             <div>
               <div className="flex items-center justify-center gap-1 mb-1">
-                <Check className="w-4 h-4 text-success" />
-                <span className="text-base sm:text-lg font-bold text-success">{positiveVotes}</span>
+                <Check className="w-5 h-5 sm:w-6 sm:h-6 text-success" />
+                <span className={isAudienceMode ? "text-2xl font-bold text-success" : "text-base sm:text-lg font-bold text-success"}>{positiveVotes}</span>
               </div>
-              <div className="text-xs text-secondary/75">Pozitivní</div>
+              <div className={isAudienceMode ? "text-lg text-secondary/75" : "text-xs text-secondary/75"}>Pozitivní</div>
             </div>
 
             <div>
               <div className="flex items-center justify-center gap-1 mb-1">
-                <X className="w-4 h-4 text-destructive" />
-                <span className="text-base sm:text-lg font-bold text-destructive">{negativeVotes}</span>
+                <X className="w-5 h-5 sm:w-6 sm:h-6 text-destructive" />
+                <span className={isAudienceMode ? "text-2xl font-bold text-destructive" : "text-base sm:text-lg font-bold text-destructive"}>{negativeVotes}</span>
               </div>
-              <div className="text-xs text-secondary/75">Negativní</div>
+              <div className={isAudienceMode ? "text-lg text-secondary/75" : "text-xs text-secondary/75"}>Negativní</div>
             </div>
 
             <div>
-              <div className="text-base sm:text-lg font-bold text-primary">{percentage}%</div>
-              <div className="text-xs text-secondary/75">Úspěšnost</div>
+              <div className={isAudienceMode ? "text-2xl font-bold text-primary" : "text-base sm:text-lg font-bold text-primary"}>{percentage}%</div>
+              <div className={isAudienceMode ? "text-lg text-secondary/75" : "text-xs text-secondary/75"}>Úspěšnost</div>
             </div>
 
             <div>
-              <div className="text-sm text-secondary/75">
-                {totalVotes}/{judges.length} hlasů
-              </div>
-              <div className="text-xs text-secondary/75">Účast</div>
+              <div className={isAudienceMode ? "text-lg text-secondary/75" : "text-sm text-secondary/75"}>{totalVotes}/{totalJudges} hlasů</div>
+              <div className={isAudienceMode ? "text-lg text-secondary/75" : "text-xs text-secondary/75"}>Účast</div>
             </div>
+
+            {isAudienceMode && (
+              <div className="flex flex-col gap-2 mt-4 sm:mt-0">
+                {judges.map((judge) => {
+                  const vote = votes.find(v => v.userId === judge.id);
+                  const voteIcon = vote?.vote ? <Check className="text-success w-6 h-6" /> : <X className="text-destructive w-6 h-6" />;
+                  return (
+                    <div key={judge.id} className="flex items-center gap-3 justify-center">
+                      <User className="w-6 h-6 text-gray-400" />
+                      <span className="text-xl font-semibold">{judge.name}</span>
+                      {voteIcon}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
-
-        {/* 🟩 Detail hlasů porotců, jen pokud není showAllRounds */}
-        {!showAllRounds && (
-          <div className="mt-4 grid grid-cols-5 gap-4 text-center">
-            {judges.slice(0, 5).map((judge) => {
-              const vote = votes.find((v) => v.userId === judge.id);
-              const votedYes = vote?.vote === true;
-              const votedNo = vote?.vote === false;
-
-              return (
-                <div key={judge.id} className="flex flex-col items-center">
-                  <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center text-sm font-semibold text-secondary">
-                    {judge.name.split(" ")[0]}
-                  </div>
-                  <div className="mt-2 text-lg">
-                    {votedYes && <Check className="w-5 h-5 text-success mx-auto" />}
-                    {votedNo && <X className="w-5 h-5 text-destructive mx-auto" />}
-                    {!votedYes && !votedNo && <span className="text-gray-400 text-xl">–</span>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </CardContent>
     </Card>
   );

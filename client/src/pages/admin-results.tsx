@@ -119,7 +119,7 @@ export default function AdminResults() {
       ) : (
         <div className="grid gap-6 max-w-6xl mx-auto">
           {roundsToShow.map((round) => (
-            <RoundResults key={round.id} round={round} judges={judges} />
+            <RoundResults key={round.id} round={round} judges={judges} showAllRounds={showAllRounds} />
           ))}
         </div>
       )}
@@ -127,7 +127,7 @@ export default function AdminResults() {
   );
 }
 
-function RoundResults({ round, judges }: { round: Round; judges: UserType[] }) {
+function RoundResults({ round, judges, showAllRounds }: { round: Round; judges: UserType[]; showAllRounds: boolean }) {
   const { data: contestants = [], isLoading } = useQuery<Contestant[]>({
     queryKey: ["/api/contestants/round", round.id],
     enabled: !!round.id,
@@ -146,7 +146,6 @@ function RoundResults({ round, judges }: { round: Round; judges: UserType[] }) {
     );
   }
 
-  // 🟩 TADY: filtrujeme jen soutěžící, kteří jsou aktuálně viditelní pro porotce
   const visibleContestants = contestants.filter((c) => c.isVisibleToJudges);
 
   return (
@@ -167,7 +166,12 @@ function RoundResults({ round, judges }: { round: Round; judges: UserType[] }) {
         ) : (
           <div className="space-y-4">
             {visibleContestants.map((contestant) => (
-              <ContestantResultCard key={contestant.id} contestant={contestant} totalJudges={judges.length} />
+              <ContestantResultCard
+                key={contestant.id}
+                contestant={contestant}
+                judges={judges}
+                showAllRounds={showAllRounds}
+              />
             ))}
           </div>
         )}
@@ -178,10 +182,12 @@ function RoundResults({ round, judges }: { round: Round; judges: UserType[] }) {
 
 function ContestantResultCard({
   contestant,
-  totalJudges,
+  judges,
+  showAllRounds,
 }: {
   contestant: Contestant;
-  totalJudges: number;
+  judges: UserType[];
+  showAllRounds: boolean;
 }) {
   const { data: votes = [] } = useQuery<Vote[]>({
     queryKey: ["/api/votes/contestant", contestant.id],
@@ -190,7 +196,7 @@ function ContestantResultCard({
   const positiveVotes = votes.filter((v) => v.vote === true).length;
   const negativeVotes = votes.filter((v) => v.vote === false).length;
   const totalVotes = votes.length;
-  const percentage = totalJudges > 0 ? Math.round((positiveVotes / totalJudges) * 100) : 0;
+  const percentage = judges.length > 0 ? Math.round((positiveVotes / judges.length) * 100) : 0;
 
   return (
     <Card>
@@ -232,12 +238,36 @@ function ContestantResultCard({
 
             <div>
               <div className="text-sm text-secondary/75">
-                {totalVotes}/{totalJudges} hlasů
+                {totalVotes}/{judges.length} hlasů
               </div>
               <div className="text-xs text-secondary/75">Účast</div>
             </div>
           </div>
         </div>
+
+        {/* 🟩 Detail hlasů porotců, jen pokud není showAllRounds */}
+        {!showAllRounds && (
+          <div className="mt-4 grid grid-cols-5 gap-2 text-center">
+            {judges.slice(0, 5).map((judge) => {
+              const vote = votes.find((v) => v.userId === judge.id);
+              const votedYes = vote?.vote === true;
+              const votedNo = vote?.vote === false;
+
+              return (
+                <div key={judge.id} className="flex flex-col items-center">
+                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-xs font-semibold text-secondary">
+                    {judge.name.split(" ")[0]}
+                  </div>
+                  <div className="mt-1 text-sm">
+                    {votedYes && <Check className="w-4 h-4 text-success mx-auto" />}
+                    {votedNo && <X className="w-4 h-4 text-destructive mx-auto" />}
+                    {!votedYes && !votedNo && <span className="text-gray-400">–</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -146,7 +146,8 @@ function RoundResults({ round, judges, showAllRounds }: { round: Round; judges: 
     );
   }
 
-  const visibleContestants = contestants.filter((c) => c.isVisibleToJudges);
+  // Pokud zobrazujeme všechna kola, zobrazíme všechny soutěžící
+  const displayedContestants = showAllRounds ? contestants : contestants.filter((c) => c.isVisibleToJudges);
 
   return (
     <Card>
@@ -158,14 +159,14 @@ function RoundResults({ round, judges, showAllRounds }: { round: Round; judges: 
       </CardHeader>
       <CardContent>
         <div className="text-sm text-secondary/75 mb-4">
-          Celkem porotců: {judges.length} | Zobrazení soutěžící: {visibleContestants.length}
+          Celkem porotců: {judges.length} | Zobrazení soutěžící: {displayedContestants.length}
         </div>
 
-        {visibleContestants.length === 0 ? (
-          <p className="text-secondary/75">V tomto kole nejsou aktuálně žádní viditelní soutěžící</p>
+        {displayedContestants.length === 0 ? (
+          <p className="text-secondary/75">V tomto kole nejsou žádní soutěžící</p>
         ) : (
           <div className="space-y-4">
-            {visibleContestants.map((contestant) => (
+            {displayedContestants.map((contestant) => (
               <ContestantResultCard
                 key={contestant.id}
                 contestant={contestant}
@@ -247,7 +248,7 @@ function ContestantResultCard({
 
         {/* 🟩 Detail hlasů porotců, jen pokud není showAllRounds */}
         {!showAllRounds && (
-          <div className="mt-4 grid grid-cols-5 gap-2 text-center">
+          <div className="mt-4 grid grid-cols-5 gap-4 text-center">
             {judges.slice(0, 5).map((judge) => {
               const vote = votes.find((v) => v.userId === judge.id);
               const votedYes = vote?.vote === true;
@@ -255,13 +256,13 @@ function ContestantResultCard({
 
               return (
                 <div key={judge.id} className="flex flex-col items-center">
-                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-xs font-semibold text-secondary">
+                  <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center text-sm font-semibold text-secondary">
                     {judge.name.split(" ")[0]}
                   </div>
-                  <div className="mt-1 text-sm">
-                    {votedYes && <Check className="w-4 h-4 text-success mx-auto" />}
-                    {votedNo && <X className="w-4 h-4 text-destructive mx-auto" />}
-                    {!votedYes && !votedNo && <span className="text-gray-400">–</span>}
+                  <div className="mt-2 text-lg">
+                    {votedYes && <Check className="w-5 h-5 text-success mx-auto" />}
+                    {votedNo && <X className="w-5 h-5 text-destructive mx-auto" />}
+                    {!votedYes && !votedNo && <span className="text-gray-400 text-xl">–</span>}
                   </div>
                 </div>
               );

@@ -6,75 +6,75 @@
 
 /* 🌕 LIGHT MODE (Výchozí) */
 :root {
-  /* POUZE ČÍSELNÉ H S L HODNOTY! (Opraveno) */
-  --background: 0 0% 100%;
-  --foreground: 240 10% 3.9%;
+  /* POUZE TŘI ČÍSELNÉ HODNOTY ODDĚLENÉ MEZERAMI (H S L) */
+  --background: 0 0 100;
+  --foreground: 240 10 3.9;
 
-  --card: 0 0% 100%; 
-  --card-foreground: 240 10% 3.9%;
+  --card: 0 0 100; 
+  --card-foreground: 240 10 3.9;
 
-  --muted: 240 4.8% 95.9%;
-  --muted-foreground: 240 3.8% 46.1%;
+  --muted: 240 4.8 95.9;
+  --muted-foreground: 240 3.8 46.1;
 
-  --popover: 0 0% 100%; 
-  --popover-foreground: 240 10% 3.9%;
+  --popover: 0 0 100; 
+  --popover-foreground: 240 10 3.9;
 
-  --border: 240 5.9% 90%; 
-  --input: 240 5.9% 90%; 
+  --border: 240 5.9 90; 
+  --input: 240 5.9 90; 
 
-  --primary: 207 90% 54%; /* Hlavní neonová barva */
-  --primary-foreground: 0 0% 100%; /* Bílý text na primární */
+  --primary: 207 90 54; /* Hlavní neonová barva */
+  --primary-foreground: 0 0 100;
 
-  --secondary: 240 4.8% 95.9%;
-  --secondary-foreground: 240 5.9% 10%;
+  --secondary: 240 4.8 95.9;
+  --secondary-foreground: 240 5.9 10;
 
-  --accent: 240 4.8% 95.9%; 
-  --accent-foreground: 240 5.9% 10%;
+  --accent: 240 4.8 95.9; 
+  --accent-foreground: 240 5.9 10;
 
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 0 0% 100%;
+  --destructive: 0 84.2 60.2;
+  --destructive-foreground: 0 0 100;
   
-  --success: 142 76% 36%;
-  --success-foreground: 0 0% 100%;
+  --success: 142 76 36;
+  --success-foreground: 0 0 100;
   
-  --ring: 207 90% 54%; /* Ring = Primary (Neon) */
+  --ring: 207 90 54;
   --radius: 0.25rem;
 }
 
 /* 🌑 DARK MODE */
 .dark {
-  /* POUZE ČÍSELNÉ H S L HODNOTY! (Opraveno) */
-  --background: 240 10% 3.9%; 
-  --foreground: 0 0% 100%; 
+  /* POUZE TŘI ČÍSELNÉ HODNOTY ODDĚLENÉ MEZERAMI (H S L) */
+  --background: 240 10 3.9; 
+  --foreground: 0 0 100; 
 
-  --card: 240 10% 6%;
-  --card-foreground: 0 0% 100%;
+  --card: 240 10 6;
+  --card-foreground: 0 0 100;
 
-  --muted: 240 3.8% 15.9%;
-  --muted-foreground: 240 5% 64.9%;
+  --muted: 240 3.8 15.9;
+  --muted-foreground: 240 5 64.9;
 
-  --popover: 240 10% 6%;
-  --popover-foreground: 0 0% 100%;
+  --popover: 240 10 6;
+  --popover-foreground: 0 0 100;
 
-  --border: 240 3.7% 15.9%; 
-  --input: 240 3.7% 15.9%;
+  --border: 240 3.7 15.9; 
+  --input: 240 3.7 15.9;
 
-  --primary: 207 90% 54%; 
-  --primary-foreground: 240 10% 3.9%; /* Tmavý text na neon */
+  --primary: 207 90 54; 
+  --primary-foreground: 240 10 3.9;
 
-  --secondary: 240 3.7% 15.9%;
-  --secondary-foreground: 0 0% 100%;
+  --secondary: 240 3.7 15.9;
+  --secondary-foreground: 0 0 100;
 
-  --accent: 240 3.7% 15.9%; 
-  --accent-foreground: 0 0% 100%;
+  --accent: 240 3.7 15.9; 
+  --accent-foreground: 0 0 100;
 
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 0 0% 100%;
+  --destructive: 0 62.8 30.6;
+  --destructive-foreground: 0 0 100;
+
+  --success: 142 76 36;
+  --success-foreground: 0 0 100;
   
-  --success: 142 76% 36%;
-  --success-foreground: 0 0% 100%;
-
-  --ring: 207 90% 54%;
+  --ring: 207 90 54;
 }
 
 /* ✅ Scrollbar jen když je obsah delší */

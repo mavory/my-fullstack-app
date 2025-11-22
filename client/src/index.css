@@ -6,74 +6,75 @@
 
 /* 🌕 LIGHT MODE (Výchozí) */
 :root {
-  /* Opravená chyba: přidán chybějící středník na konci řádku 8 */
-  --background: 255 255 255; /* Čistě bílé pozadí */
-  --foreground: 15 15 18; /* Téměř černý text */
+  /* POUZE ČÍSELNÉ H S L HODNOTY! (Opraveno) */
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
 
-  --card: 245 245 245; /* Lehce šedá karta */
-  --card-foreground: 15 15 18;
+  --card: 0 0% 100%; 
+  --card-foreground: 240 10% 3.9%;
 
-  --muted: 240 240 240; /* Muted pro menší texty/ikonky */
-  --muted-foreground: 100 100 100;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 3.8% 46.1%;
 
-  --popover: 255 255 255; 
-  --popover-foreground: 15 15 18;
+  --popover: 0 0% 100%; 
+  --popover-foreground: 240 10% 3.9%;
 
-  --border: 200 200 200; /* Světlý, jemný okraj */
-  --input: 240 240 240; /* Lehce šedé pozadí inputu */
+  --border: 240 5.9% 90%; 
+  --input: 240 5.9% 90%; 
 
-  --primary: 207 90% 54%; /* Neon/Azurová modrá */
-  --primary-foreground: 255 255 255; /* Bílý text na primární */
+  --primary: 207 90% 54%; /* Hlavní neonová barva */
+  --primary-foreground: 0 0% 100%; /* Bílý text na primární */
 
-  --secondary: 40 40 50; /* Tmavě šedé sekundární pozadí */
-  --secondary-foreground: 255 255 255; /* Bílý text na sekundární */
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 5.9% 10%;
 
-  --accent: 230 230 230; /* Akcent pro hover (světlý) */
-  --accent-foreground: 15 15 18;
+  --accent: 240 4.8% 95.9%; 
+  --accent-foreground: 240 5.9% 10%;
 
   --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 255 255 255;
+  --destructive-foreground: 0 0% 100%;
   
   --success: 142 76% 36%;
-  --success-foreground: 255 255 255;
+  --success-foreground: 0 0% 100%;
   
-  --ring: 207 90% 54%; /* Fokus kroužek používá primární barvu (neon) */
-  --radius: 0.25rem; /* Ostré hrany (místo 0.75rem) */
+  --ring: 207 90% 54%; /* Ring = Primary (Neon) */
+  --radius: 0.25rem;
 }
 
 /* 🌑 DARK MODE */
 .dark {
-  --background: 15 15 18; /* Tmavě šedé pozadí */
-  --foreground: 255 255 255; /* Bílý text */
+  /* POUZE ČÍSELNÉ H S L HODNOTY! (Opraveno) */
+  --background: 240 10% 3.9%; 
+  --foreground: 0 0% 100%; 
 
-  --card: 35 35 45; /* Tmavší, ale odlišná karta */
-  --card-foreground: 255 255 255;
+  --card: 240 10% 6%;
+  --card-foreground: 0 0% 100%;
 
-  --muted: 40 40 50;
-  --muted-foreground: 160 160 160;
+  --muted: 240 3.8% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
 
-  --popover: 35 35 45;
-  --popover-foreground: 255 255 255;
+  --popover: 240 10% 6%;
+  --popover-foreground: 0 0% 100%;
 
-  --border: 60 60 70; /* Viditelný tmavý okraj */
-  --input: 40 40 50; /* Lehce světlejší pozadí inputu */
+  --border: 240 3.7% 15.9%; 
+  --input: 240 3.7% 15.9%;
 
-  --primary: 207 90% 54%; /* Neon/Azurová modrá (stejná, bude svítit) */
-  --primary-foreground: 15 15 18; /* Tmavý text na primární */
+  --primary: 207 90% 54%; 
+  --primary-foreground: 240 10% 3.9%; /* Tmavý text na neon */
 
-  --secondary: 160 160 160; /* Sekundární pro tmavé pozadí */
-  --secondary-foreground: 15 15 18;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 100%;
 
-  --accent: 45 45 55; /* Akcent pro hover (tmavý) */
-  --accent-foreground: 255 255 255;
+  --accent: 240 3.7% 15.9%; 
+  --accent-foreground: 0 0% 100%;
 
-  --destructive: 0 84.2% 69.2%; /* Lehce světlejší destructive pro kontrast v dark mode */
-  --destructive-foreground: 15 15 18;
-
-  --success: 142 76% 50%;
-  --success-foreground: 15 15 18;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 100%;
   
-  --ring: 207 90% 54%; /* Stále neon */
+  --success: 142 76% 36%;
+  --success-foreground: 0 0% 100%;
+
+  --ring: 207 90% 54%;
 }
 
 /* ✅ Scrollbar jen když je obsah delší */
@@ -96,8 +97,7 @@ body::-webkit-scrollbar {
   }
 
   body {
-    /* Zajištění, že se barvy aplikují správně */
-    @apply font-sans antialiased bg-background text-foreground min-h-screen; 
+    @apply font-sans antialiased bg-background text-foreground min-h-screen;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -109,7 +109,7 @@ body::-webkit-scrollbar {
   }
 }
 
-/* Components layer (Zde je nutné odstranit ruční styly, které konfliktní s Button.tsx) */
+/* Components layer */
 @layer components {
   .container-center {
     @apply w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
@@ -120,7 +120,6 @@ body::-webkit-scrollbar {
   }
 
   .card {
-    /* Aktualizováno pro ostřejší styl z card.tsx */
     @apply bg-card text-card-foreground rounded-sm border border-border p-6 flex flex-col gap-4 w-full transition-shadow duration-300 hover:shadow-lg;
   }
 
@@ -132,8 +131,6 @@ body::-webkit-scrollbar {
     @apply text-base text-muted-foreground;
   }
 
-  /* Třída .btn je redundantní, pokud používáte <Button /> komponentu, 
-     ale pro zachování kompatibility ji sjednotíme s novým designem */
   .btn {
     @apply px-4 py-2 rounded-sm bg-primary text-primary-foreground font-medium text-center 
             transition-all duration-200 ease-in-out hover:bg-primary/80 active:scale-[0.98];

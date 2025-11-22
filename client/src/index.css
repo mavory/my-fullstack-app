@@ -4,75 +4,75 @@
 
 /* 🎨 Vlastní barvy a proměnné */
 
-/* 🌕 LIGHT MODE (Výchozí) - POUZE CELÁ ČÍSLA! */
+/* 🌕 LIGHT MODE (Výchozí) - POUZE CELÁ ČÍSLA A ČÁRKY! */
 :root {
-  --background: 0 0 100;
-  --foreground: 240 10 4;
+  --background: 0,0,100;
+  --foreground: 240,10,4;
 
-  --card: 0 0 100; 
-  --card-foreground: 240 10 4;
+  --card: 0,0,100; 
+  --card-foreground: 240,10,4;
 
-  --muted: 240 5 96;
-  --muted-foreground: 240 4 46;
+  --muted: 240,5,96;
+  --muted-foreground: 240,4,46;
 
-  --popover: 0 0 100; 
-  --popover-foreground: 240 10 4;
+  --popover: 0,0,100; 
+  --popover-foreground: 240,10,4;
 
-  --border: 240 6 90; 
-  --input: 240 6 90; 
+  --border: 240,6,90; 
+  --input: 240,6,90; 
 
-  --primary: 207 90 54;
-  --primary-foreground: 0 0 100;
+  --primary: 207,90,54;
+  --primary-foreground: 0,0,100;
 
-  --secondary: 240 5 96;
-  --secondary-foreground: 240 6 10;
+  --secondary: 240,5,96;
+  --secondary-foreground: 240,6,10;
 
-  --accent: 240 5 96; 
-  --accent-foreground: 240 6 10;
+  --accent: 240,5,96; 
+  --accent-foreground: 240,6,10;
 
-  --destructive: 0 84 60;
-  --destructive-foreground: 0 0 100;
+  --destructive: 0,84,60;
+  --destructive-foreground: 0,0,100;
   
-  --success: 142 76 36;
-  --success-foreground: 0 0 100;
+  --success: 142,76,36;
+  --success-foreground: 0,0,100;
   
-  --ring: 207 90 54;
+  --ring: 207,90,54;
   --radius: 0.25rem;
 }
 
-/* 🌑 DARK MODE - POUZE CELÁ ČÍSLA! */
+/* 🌑 DARK MODE - POUZE CELÁ ČÍSLA A ČÁRKY! */
 .dark {
-  --background: 240 10 4; 
-  --foreground: 0 0 100; 
+  --background: 240,10,4; 
+  --foreground: 0,0,100; 
 
-  --card: 240 10 6;
-  --card-foreground: 0 0 100;
+  --card: 240,10,6;
+  --card-foreground: 0,0,100;
 
-  --muted: 240 4 16;
-  --muted-foreground: 240 5 65;
+  --muted: 240,4,16;
+  --muted-foreground: 240,5,65;
 
-  --popover: 240 10 6;
-  --popover-foreground: 0 0 100;
+  --popover: 240,10,6;
+  --popover-foreground: 0,0,100;
 
-  --border: 240 4 16; 
-  --input: 240 4 16;
+  --border: 240,4,16; 
+  --input: 240,4,16;
 
-  --primary: 207 90 54; 
-  --primary-foreground: 240 10 4;
+  --primary: 207,90,54; 
+  --primary-foreground: 240,10,4;
 
-  --secondary: 240 4 16;
-  --secondary-foreground: 0 0 100;
+  --secondary: 240,4,16;
+  --secondary-foreground: 0,0,100;
 
-  --accent: 240 4 16; 
-  --accent-foreground: 0 0 100;
+  --accent: 240,4,16; 
+  --accent-foreground: 0,0,100;
 
-  --destructive: 0 63 31;
-  --destructive-foreground: 0 0 100;
+  --destructive: 0,63,31;
+  --destructive-foreground: 0,0,100;
 
-  --success: 142 76 36;
-  --success-foreground: 0 0 100;
+  --success: 142,76,36;
+  --success-foreground: 0,0,100;
   
-  --ring: 207 90 54;
+  --ring: 207,90,54;
 }
 
 /* ✅ Scrollbar jen když je obsah delší */
@@ -143,6 +143,7 @@ body::-webkit-scrollbar {
 
 /* Utilities layer */
 @layer utilities {
+  /* Tady je důležité, že používáme HSL funkci, která se postará o převod */
   .bg-success { background-color: hsl(var(--success)); }
   .bg-success\/90 { background-color: hsl(var(--success) / 0.9); }
   .text-success { color: hsl(var(--success)); }

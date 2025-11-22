@@ -3,107 +3,160 @@
 @tailwind utilities;
 
 /* 🎨 Vlastní barvy a proměnné */
+
+/* 🌕 LIGHT MODE (Výchozí) */
 :root {
-  --background: hsl(250, 20%, 98%);
-  --foreground: hsl(240, 10%, 3.9%);
-  --muted: hsl(240, 4.8%, 95.9%);
-  --muted-foreground: hsl(240, 3.8%, 46.1%);
-  --popover: hsl(0, 0%, 100%);
-  --popover-foreground: hsl(240, 10%, 3.9%);
-  --card: hsl(0, 0%, 100%);
-  --card-foreground: hsl(240, 10%, 3.9%);
-  --border: hsl(240, 5.9%, 90%);
-  --input: hsl(240, 5.9%, 90%);
-  --primary: hsl(207, 90%, 54%);
-  --primary-foreground: hsl(210, 40%, 98%);
-  --secondary: hsl(240, 4.8%, 15.9%);
-  --secondary-foreground: hsl(0, 0%, 98%);
-  --accent: hsl(240, 4.8%, 95.9%);
-  --accent-foreground: hsl(240, 5.9%, 10%);
-  --destructive: hsl(0, 84.2%, 60.2%);
-  --destructive-foreground: hsl(210, 40%, 98%);
-  --success: hsl(142, 76%, 36%);
-  --success-foreground: hsl(210, 40%, 98%);
-  --ring: hsl(240, 10%, 3.9%);
-  --radius: 0.75rem;
+  /* Opravená chyba: přidán chybějící středník na konci řádku 8 */
+  --background: 255 255 255; /* Čistě bílé pozadí */
+  --foreground: 15 15 18; /* Téměř černý text */
+
+  --card: 245 245 245; /* Lehce šedá karta */
+  --card-foreground: 15 15 18;
+
+  --muted: 240 240 240; /* Muted pro menší texty/ikonky */
+  --muted-foreground: 100 100 100;
+
+  --popover: 255 255 255; 
+  --popover-foreground: 15 15 18;
+
+  --border: 200 200 200; /* Světlý, jemný okraj */
+  --input: 240 240 240; /* Lehce šedé pozadí inputu */
+
+  --primary: 207 90% 54%; /* Neon/Azurová modrá */
+  --primary-foreground: 255 255 255; /* Bílý text na primární */
+
+  --secondary: 40 40 50; /* Tmavě šedé sekundární pozadí */
+  --secondary-foreground: 255 255 255; /* Bílý text na sekundární */
+
+  --accent: 230 230 230; /* Akcent pro hover (světlý) */
+  --accent-foreground: 15 15 18;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 255 255 255;
+  
+  --success: 142 76% 36%;
+  --success-foreground: 255 255 255;
+  
+  --ring: 207 90% 54%; /* Fokus kroužek používá primární barvu (neon) */
+  --radius: 0.25rem; /* Ostré hrany (místo 0.75rem) */
+}
+
+/* 🌑 DARK MODE */
+.dark {
+  --background: 15 15 18; /* Tmavě šedé pozadí */
+  --foreground: 255 255 255; /* Bílý text */
+
+  --card: 35 35 45; /* Tmavší, ale odlišná karta */
+  --card-foreground: 255 255 255;
+
+  --muted: 40 40 50;
+  --muted-foreground: 160 160 160;
+
+  --popover: 35 35 45;
+  --popover-foreground: 255 255 255;
+
+  --border: 60 60 70; /* Viditelný tmavý okraj */
+  --input: 40 40 50; /* Lehce světlejší pozadí inputu */
+
+  --primary: 207 90% 54%; /* Neon/Azurová modrá (stejná, bude svítit) */
+  --primary-foreground: 15 15 18; /* Tmavý text na primární */
+
+  --secondary: 160 160 160; /* Sekundární pro tmavé pozadí */
+  --secondary-foreground: 15 15 18;
+
+  --accent: 45 45 55; /* Akcent pro hover (tmavý) */
+  --accent-foreground: 255 255 255;
+
+  --destructive: 0 84.2% 69.2%; /* Lehce světlejší destructive pro kontrast v dark mode */
+  --destructive-foreground: 15 15 18;
+
+  --success: 142 76% 50%;
+  --success-foreground: 15 15 18;
+  
+  --ring: 207 90% 54%; /* Stále neon */
 }
 
 /* ✅ Scrollbar jen když je obsah delší */
 html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: none;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 body::-webkit-scrollbar {
-  display: none;
+  display: none;
 }
 
 /* Base layer */
 @layer base {
-  * {
-    @apply border-border box-border;
-  }
+  * {
+    @apply border-border box-border;
+  }
 
-  body {
-    @apply font-sans antialiased bg-background text-foreground min-h-screen flex flex-col;
-  }
+  body {
+    /* Zajištění, že se barvy aplikují správně */
+    @apply font-sans antialiased bg-background text-foreground min-h-screen; 
+  }
 
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-semibold text-foreground;
-  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold text-foreground;
+  }
 
-  p {
-    @apply text-muted-foreground leading-relaxed break-words;
-  }
+  p {
+    @apply text-muted-foreground leading-relaxed break-words;
+  }
 }
 
-/* Components layer */
+/* Components layer (Zde je nutné odstranit ruční styly, které konfliktní s Button.tsx) */
 @layer components {
-  .container-center {
-    @apply w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
-  }
+  .container-center {
+    @apply w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
 
-  .panel {
-    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6;
-  }
+  .panel {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6;
+  }
 
-  .card {
-    @apply bg-card text-card-foreground rounded-2xl shadow p-6 flex flex-col gap-4 w-full;
-  }
+  .card {
+    /* Aktualizováno pro ostřejší styl z card.tsx */
+    @apply bg-card text-card-foreground rounded-sm border border-border p-6 flex flex-col gap-4 w-full transition-shadow duration-300 hover:shadow-lg;
+  }
 
-  .card-title {
-    @apply text-lg font-semibold;
-  }
+  .card-title {
+    @apply text-xl font-bold;
+  }
 
-  .card-text {
-    @apply text-sm text-muted-foreground;
-  }
+  .card-text {
+    @apply text-base text-muted-foreground;
+  }
 
-  .btn {
-    @apply px-4 py-2 rounded-lg bg-primary text-primary-foreground font-medium text-center transition-colors duration-200;
-  }
-  .btn:hover {
-    @apply bg-primary/90;
-  }
-  .btn:disabled {
-    @apply opacity-50 cursor-not-allowed;
-  }
+  /* Třída .btn je redundantní, pokud používáte <Button /> komponentu, 
+     ale pro zachování kompatibility ji sjednotíme s novým designem */
+  .btn {
+    @apply px-4 py-2 rounded-sm bg-primary text-primary-foreground font-medium text-center 
+            transition-all duration-200 ease-in-out hover:bg-primary/80 active:scale-[0.98];
+  }
+  .btn:hover {
+    @apply shadow-primary/50 shadow-lg;
+  }
+  .btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
 }
 
 /* Utilities layer */
 @layer utilities {
-  .bg-success { background-color: hsl(var(--success)); }
-  .bg-success\/90 { background-color: hsl(var(--success) / 0.9); }
-  .text-success { color: hsl(var(--success)); }
-  .border-success { border-color: hsl(var(--success)); }
+  .bg-success { background-color: hsl(var(--success)); }
+  .bg-success\/90 { background-color: hsl(var(--success) / 0.9); }
+  .text-success { color: hsl(var(--success)); }
+  .border-success { border-color: hsl(var(--success)); }
 
-  .bg-error { background-color: hsl(var(--destructive)); }
-  .text-error { color: hsl(var(--destructive)); }
-  .border-error { border-color: hsl(var(--destructive)); }
+  .bg-error { background-color: hsl(var(--destructive)); }
+  .text-error { color: hsl(var(--destructive)); }
+  .border-error { border-color: hsl(var(--destructive)); }
 
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
 }

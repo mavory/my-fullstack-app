@@ -4,17 +4,16 @@
 
 /* 🎨 Vlastní barvy a proměnné */
 
-/* 🌕 LIGHT MODE (Výchozí) */
+/* 🌕 LIGHT MODE (Výchozí) - POUZE CELÁ ČÍSLA! */
 :root {
-  /* Čisté H S L hodnoty - celá čísla, oddělené mezerami */
   --background: 0 0 100;
-  --foreground: 240 10 4; /* Převedeno z 3.9 na 4 */
+  --foreground: 240 10 4;
 
   --card: 0 0 100; 
   --card-foreground: 240 10 4;
 
-  --muted: 240 5 96; /* Zaokrouhleno */
-  --muted-foreground: 240 4 46; /* Zaokrouhleno */
+  --muted: 240 5 96;
+  --muted-foreground: 240 4 46;
 
   --popover: 0 0 100; 
   --popover-foreground: 240 10 4;
@@ -41,9 +40,8 @@
   --radius: 0.25rem;
 }
 
-/* 🌑 DARK MODE */
+/* 🌑 DARK MODE - POUZE CELÁ ČÍSLA! */
 .dark {
-  /* Čisté H S L hodnoty - celá čísla, oddělené mezerami */
   --background: 240 10 4; 
   --foreground: 0 0 100; 
 

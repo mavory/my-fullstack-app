@@ -2,157 +2,172 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 🎨 Vlastní barvy a proměnné */
+/* 🎨 Custom colors */
 
-/* 🌕 LIGHT MODE (Výchozí) - POUZE CELÁ ČÍSLA A ČÁRKY! */
+/* LIGHT MODE */
 :root {
-  --background: 0,0,100;
-  --foreground: 240,10,4;
+  --background: 0,0,100;
+  --foreground: 240,10,4;
 
-  --card: 0,0,100; 
-  --card-foreground: 240,10,4;
+  --card: 0,0,100; 
+  --card-foreground: 240,10,4;
 
-  --muted: 240,5,96;
-  --muted-foreground: 240,4,46;
+  --muted: 240,5,96;
+  --muted-foreground: 240,4,46;
 
-  --popover: 0,0,100; 
-  --popover-foreground: 240,10,4;
+  --popover: 0,0,100; 
+  --popover-foreground: 240,10,4;
 
-  --border: 240,6,90; 
-  --input: 240,6,90; 
+  --border: 240,6,90;
+  --input: 240,6,90;
 
-  --primary: 207,90,54;
-  --primary-foreground: 0,0,100;
+  --primary: 207,90,54;
+  --primary-foreground: 0,0,100;
 
-  --secondary: 240,5,96;
-  --secondary-foreground: 240,6,10;
+  --secondary: 240,5,96;
+  --secondary-foreground: 240,6,10;
 
-  --accent: 240,5,96; 
-  --accent-foreground: 240,6,10;
+  --accent: 240,5,96;
+  --accent-foreground: 240,6,10;
 
-  --destructive: 0,84,60;
-  --destructive-foreground: 0,0,100;
-  
-  --success: 142,76,36;
-  --success-foreground: 0,0,100;
-  
-  --ring: 207,90,54;
-  --radius: 0.25rem;
+  --destructive: 0,84,60;
+  --destructive-foreground: 0,0,100;
+
+  --success: 142,76,36;
+  --success-foreground: 0,0,100;
+
+  --ring: 207,90,54;
+  --radius: 0.25rem;
 }
 
-/* 🌑 DARK MODE - POUZE CELÁ ČÍSLA A ČÁRKY! */
+/* DARK MODE */
 .dark {
-  --background: 240,10,4; 
-  --foreground: 0,0,100; 
+  --background: 240,10,4; 
+  --foreground: 0,0,100; 
 
-  --card: 240,10,6;
-  --card-foreground: 0,0,100;
+  --card: 240,10,6;
+  --card-foreground: 0,0,100;
 
-  --muted: 240,4,16;
-  --muted-foreground: 240,5,65;
+  --muted: 240,4,16;
+  --muted-foreground: 240,5,65;
 
-  --popover: 240,10,6;
-  --popover-foreground: 0,0,100;
+  --popover: 240,10,6;
+  --popover-foreground: 0,0,100;
 
-  --border: 240,4,16; 
-  --input: 240,4,16;
+  --border: 240,4,16;
+  --input: 240,4,16;
 
-  --primary: 207,90,54; 
-  --primary-foreground: 240,10,4;
+  --primary: 207,90,54;
+  --primary-foreground: 240,10,4;
 
-  --secondary: 240,4,16;
-  --secondary-foreground: 0,0,100;
+  --secondary: 240,4,16;
+  --secondary-foreground: 0,0,100;
 
-  --accent: 240,4,16; 
-  --accent-foreground: 0,0,100;
+  --accent: 240,4,16;
+  --accent-foreground: 0,0,100;
 
-  --destructive: 0,63,31;
-  --destructive-foreground: 0,0,100;
+  --destructive: 0,63,31;
+  --destructive-foreground: 0,0,100;
 
-  --success: 142,76,36;
-  --success-foreground: 0,0,100;
-  
-  --ring: 207,90,54;
+  --success: 142,76,36;
+  --success-foreground: 0,0,100;
+
+  --ring: 207,90,54;
 }
 
-/* ✅ Scrollbar jen když je obsah delší */
+/* Scrollbar */
 html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: none;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 body::-webkit-scrollbar {
-  display: none;
+  display: none;
 }
 
-/* Base layer */
+/* Base */
 @layer base {
-  * {
-    @apply border-border box-border;
-  }
+  * {
+    box-sizing: border-box;
+    border-color: hsl(var(--border));
+  }
 
-  body {
-    @apply font-sans antialiased bg-background text-foreground min-h-screen;
-  }
+  body {
+    font-family: var(--font-sans);
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
 
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-semibold text-foreground;
-  }
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    color: hsl(var(--foreground));
+  }
 
-  p {
-    @apply text-muted-foreground leading-relaxed break-words;
-  }
+  p {
+    color: hsl(var(--muted-foreground));
+    line-height: 1.6;
+    word-break: break-word;
+  }
 }
 
-/* Components layer */
+/* Components */
 @layer components {
-  .container-center {
-    @apply w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
-  }
+  .container-center {
+    @apply w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
 
-  .panel {
-    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6;
-  }
+  .panel {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6;
+  }
 
-  .card {
-    @apply bg-card text-card-foreground rounded-sm border border-border p-6 flex flex-col gap-4 w-full transition-shadow duration-300 hover:shadow-lg;
-  }
+  .card {
+    background: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    @apply p-6 flex flex-col gap-4 w-full transition-shadow duration-300 hover:shadow-lg;
+  }
 
-  .card-title {
-    @apply text-xl font-bold;
-  }
+  .card-title {
+    @apply text-xl font-bold;
+  }
 
-  .card-text {
-    @apply text-base text-muted-foreground;
-  }
+  .card-text {
+    color: hsl(var(--muted-foreground));
+    @apply text-base;
+  }
 
-  .btn {
-    @apply px-4 py-2 rounded-sm bg-primary text-primary-foreground font-medium text-center 
-            transition-all duration-200 ease-in-out hover:bg-primary/80 active:scale-[0.98];
-  }
-  .btn:hover {
-    @apply shadow-primary/50 shadow-lg;
-  }
-  .btn:disabled {
-    @apply opacity-50 cursor-not-allowed;
-  }
+  .btn {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    @apply px-4 py-2 rounded-sm font-medium text-center transition-all duration-200 hover:bg-primary/80 active:scale-[0.98];
+  }
+
+  .btn:hover {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.5);
+  }
+
+  .btn:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
 }
 
-/* Utilities layer */
+/* Utilities */
 @layer utilities {
-  /* Tady je důležité, že používáme HSL funkci, která se postará o převod */
-  .bg-success { background-color: hsl(var(--success)); }
-  .bg-success\/90 { background-color: hsl(var(--success) / 0.9); }
-  .text-success { color: hsl(var(--success)); }
-  .border-success { border-color: hsl(var(--success)); }
+  .bg-success { background-color: hsl(var(--success)); }
+  .bg-success\/90 { background-color: hsl(var(--success) / 0.9); }
+  .text-success { color: hsl(var(--success)); }
+  .border-success { border-color: hsl(var(--success)); }
 
-  .bg-error { background-color: hsl(var(--destructive)); }
-  .text-error { color: hsl(var(--destructive)); }
-  .border-error { border-color: hsl(var(--destructive)); }
+  .bg-error { background-color: hsl(var(--destructive)); }
+  .text-error { color: hsl(var(--destructive)); }
+  .border-error { border-color: hsl(var(--destructive)); }
 
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
 }

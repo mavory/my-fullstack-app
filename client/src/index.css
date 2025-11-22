@@ -2,20 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 🎨 Custom colors */
+/* 🎨 Vlastní barvy a proměnné */
 
-/* LIGHT MODE */
+/* 🌕 LIGHT MODE (Výchozí) - POUZE CELÁ ČÍSLA A ČÁRKY! */
 :root {
   --background: 0,0,100;
   --foreground: 240,10,4;
 
-  --card: 0,0,100; 
+  --card: 0,0,100;
   --card-foreground: 240,10,4;
 
   --muted: 240,5,96;
   --muted-foreground: 240,4,46;
 
-  --popover: 0,0,100; 
+  --popover: 0,0,100;
   --popover-foreground: 240,10,4;
 
   --border: 240,6,90;
@@ -40,10 +40,10 @@
   --radius: 0.25rem;
 }
 
-/* DARK MODE */
+/* 🌑 DARK MODE - POUZE CELÁ ČÍSLA A ČÁRKY! */
 .dark {
-  --background: 240,10,4; 
-  --foreground: 0,0,100; 
+  --background: 240,10,4;
+  --foreground: 0,0,100;
 
   --card: 240,10,6;
   --card-foreground: 0,0,100;
@@ -88,34 +88,26 @@ body::-webkit-scrollbar {
   display: none;
 }
 
-/* Base */
+/* Base layer */
 @layer base {
   * {
-    box-sizing: border-box;
-    border-color: hsl(var(--border));
+    @apply border-border box-border;
   }
 
   body {
-    font-family: var(--font-sans);
-    background: hsl(var(--background));
-    color: hsl(var(--foreground));
-    min-height: 100vh;
-    -webkit-font-smoothing: antialiased;
+    @apply font-sans antialiased bg-background text-foreground min-h-screen;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-weight: 600;
-    color: hsl(var(--foreground));
+    @apply font-semibold text-foreground;
   }
 
   p {
-    color: hsl(var(--muted-foreground));
-    line-height: 1.6;
-    word-break: break-word;
+    @apply text-muted-foreground leading-relaxed break-words;
   }
 }
 
-/* Components */
+/* Components layer */
 @layer components {
   .container-center {
     @apply w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
@@ -126,11 +118,7 @@ body::-webkit-scrollbar {
   }
 
   .card {
-    background: hsl(var(--card));
-    color: hsl(var(--card-foreground));
-    border: 1px solid hsl(var(--border));
-    border-radius: var(--radius);
-    @apply p-6 flex flex-col gap-4 w-full transition-shadow duration-300 hover:shadow-lg;
+    @apply bg-card text-card-foreground rounded-sm border border-border p-6 flex flex-col gap-4 w-full transition-shadow duration-300 hover:shadow-lg;
   }
 
   .card-title {
@@ -138,18 +126,15 @@ body::-webkit-scrollbar {
   }
 
   .card-text {
-    color: hsl(var(--muted-foreground));
-    @apply text-base;
+    @apply text-base text-muted-foreground;
   }
 
   .btn {
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-    @apply px-4 py-2 rounded-sm font-medium text-center transition-all duration-200 hover:bg-primary/80 active:scale-[0.98];
+    @apply px-4 py-2 rounded-sm bg-primary text-primary-foreground font-medium text-center transition-all duration-200 ease-in-out hover:bg-primary/80 active:scale-[0.98];
   }
 
   .btn:hover {
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.5);
+    @apply shadow-primary/50 shadow-lg;
   }
 
   .btn:disabled {
@@ -157,7 +142,7 @@ body::-webkit-scrollbar {
   }
 }
 
-/* Utilities */
+/* Utilities layer */
 @layer utilities {
   .bg-success { background-color: hsl(var(--success)); }
   .bg-success\/90 { background-color: hsl(var(--success) / 0.9); }
